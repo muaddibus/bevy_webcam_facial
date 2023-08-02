@@ -1,6 +1,6 @@
 [package]
 name = "bevy_webcam_facial"
-version = "0.1.0"
+version = "0.1.1"
 description = "Webcam AI face recognition plugin for bevy game engine"
 authors = ["Andrius Kokianciks <andrius.kokianciks@gmail.com>"]
 license = "MIT/Apache-2.0"
