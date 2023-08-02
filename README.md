@@ -11,7 +11,7 @@ Plugin for rust [Bevy](https://bevyengine.org/) game engine. Captures webcam ima
 
 ## Supported Platforms
 
-- [x] Linux via v4l2
+- [x] Linux via v4l2 [rscam]
 - [ ] MacOSX
 - [ ] Windows
 
@@ -70,9 +70,9 @@ WebcamFacialData {
 
 Three examples are provided in [examples] folder:
 
-* object_mover - move object using raw unfiltered/noisy data
-* camera_control - control bevy camera view using averaged data from camera + interpolation
-* neck_trainer - train you neck :) most complex example with averaged data + interpolation + bone animation
+* [object_mover](examples/object_mover.rs) - move object using raw unfiltered/noisy data
+* [camera_control](examples/camera_control.rs) - control bevy camera view using averaged data from camera
+* [neck_trainer](examples/neck_trainer.rs) - train you neck :) most complex example with averaged data + bone animation
 
 ## Versions
 
