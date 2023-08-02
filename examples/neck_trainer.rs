@@ -20,7 +20,6 @@ fn main() {
             config_webcam_autostart: true,
         })
         .add_plugins(HookPlugin)
-        .add_plugins(InterpPlugin)
         .add_systems(Startup, load_scene)
         .add_systems(Update, (keyboard_animation_control,bone_move))
         .run();
@@ -47,9 +46,7 @@ fn load_scene(mut cmds: Commands, asset_server: Res<AssetServer>) {
         },
         hook: SceneHook::new(|entity, cmds| {
             match entity.get::<Name>().map(|t| t.as_str()) {
-                Some("Headas") => cmds.insert(HeadBone).insert(InterpTransform::from(
-                    Transform::IDENTITY.with_scale(Vec3::new(5., 5., 1.)),
-                )),
+                Some("Headas") => cmds.insert(HeadBone),
                 _ => cmds,
             };
         }),

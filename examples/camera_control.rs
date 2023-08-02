@@ -2,9 +2,6 @@ use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy_scene_hook::{HookPlugin, HookedSceneBundle, SceneHook};
 
-// bevy_mod_interp modified/adapted for compatability with bevy 0.11
-use bevy_mod_interp::*;
-
 use bevy_webcam_facial::*;
 
 #[derive(Component)]
@@ -31,7 +28,6 @@ fn main() {
             config_webcam_autostart: true,
         })
         .add_plugins(HookPlugin)
-        .add_plugins(InterpPlugin)
         .add_systems(Startup, load_scene)
         .add_systems(
             Update,
@@ -62,15 +58,6 @@ fn load_scene(mut cmds: Commands, asset_server: Res<AssetServer>) {
                     //     1.0,                                 // Easing exponent
                     // ));
                 }
-                Some("CameraTarget") => {
-                    cmds.insert(CameraControl).insert(InterpTransform::new(
-                        Vec3::new(0.0, 2.0, 7.0),   // Target translation
-                        Quat::from_rotation_y(0.0), // Target rotation (90 degrees around Y-axis)
-                        Vec3::new(1.0, 1.0, 1.0),   // Target scale
-                        0.1,                        // Easing duration (2 seconds)
-                        1.0,                        // Easing exponent
-                    ));
-                }
                 _ => {}
             };
         }),
@@ -78,7 +65,6 @@ fn load_scene(mut cmds: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn set_camera_position_from_plugin(
-    mut camera_target: Query<&mut InterpTransform, With<CameraControl>>,
     mut camera: Query<&mut Transform, With<CameraEye>>,
 
     mut average: ResMut<Average>,
@@ -92,35 +78,35 @@ fn set_camera_position_from_plugin(
         average.x = (x + average.x) / 20.0;
         average.y = (y + average.y) / 20.0;
 
-        for mut interp_transform in camera_target.iter_mut() {
-            // Default bevy cam movement
-            //interp_transform.target_translation = Transform::from_xyz(0.0, 2.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y).translation;
+        // for mut interp_transform in camera_target.iter_mut() {
+        //     // Default bevy cam movement
+        //     //interp_transform.target_translation = Transform::from_xyz(0.0, 2.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y).translation;
 
-            // Update the translation target of InterpTransform
+        //     // Update the translation target of InterpTransform
 
-            interp_transform.update_target(Transform::from_translation(Vec3::new(
-                -average.x, 1.0, average.y,
-            )));
+        //     interp_transform.update_target(Transform::from_translation(Vec3::new(
+        //         -average.x, 1.0, average.y,
+        //     )));
 
-            //interp_transform.target_translation = Vec3::new(average.x, 2.0, average.y-7.0);
+        //     //interp_transform.target_translation = Vec3::new(average.x, 2.0, average.y-7.0);
 
-            //interp_transform.target_rotation = Quat::from_rotation_y(-average.x);
+        //     //interp_transform.target_rotation = Quat::from_rotation_y(-average.x);
 
-            //interp_transform.target_rotation *= Quat::from_rotation_x(average.x) + Quat::from_rotation_z(average.y);
+        //     //interp_transform.target_rotation *= Quat::from_rotation_x(average.x) + Quat::from_rotation_z(average.y);
 
-            // interp_transform.target_scale *= 1;
+        //     // interp_transform.target_scale *= 1;
 
-            // Set camera to loot at target
-            for mut transform in camera.iter_mut() {
-                // get target
-                // Set look at
-                transform.rotation = Transform::from_xyz(0.0, 2.0, 5.0)
-                    .looking_at(interp_transform.target_translation, Vec3::Y)
-                    .rotation;
-                info!("Target{:?}", interp_transform.target_translation);
-                info!("Camera{:?}", transform.rotation);
-            }
-        }
+        //     // Set camera to loot at target
+        //     for mut transform in camera.iter_mut() {
+        //         // get target
+        //         // Set look at
+        //         transform.rotation = Transform::from_xyz(0.0, 2.0, 5.0)
+        //             .looking_at(interp_transform.target_translation, Vec3::Y)
+        //             .rotation;
+        //         info!("Target{:?}", interp_transform.target_translation);
+        //         info!("Camera{:?}", transform.rotation);
+        //     }
+        // }
     }
 }
 
