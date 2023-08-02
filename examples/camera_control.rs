@@ -78,49 +78,50 @@ fn set_camera_position_from_plugin(
         average.x = (x + average.x) / 20.0;
         average.y = (y + average.y) / 20.0;
 
-        // for mut interp_transform in camera_target.iter_mut() {
-        //     // Default bevy cam movement
-        //     //interp_transform.target_translation = Transform::from_xyz(0.0, 2.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y).translation;
+        for mut interp_transform in camera.iter_mut() {
+            interp_transform.translation = Transform::from_xyz(average.x, 2.0, average.y)
+                .looking_at(Vec3::ZERO, Vec3::Y)
+                .translation;
 
-        //     // Update the translation target of InterpTransform
+            //     // Update the translation target of InterpTransform
 
-        //     interp_transform.update_target(Transform::from_translation(Vec3::new(
-        //         -average.x, 1.0, average.y,
-        //     )));
+            //     interp_transform.update_target(Transform::from_translation(Vec3::new(
+            //         -average.x, 1.0, average.y,
+            //     )));
 
-        //     //interp_transform.target_translation = Vec3::new(average.x, 2.0, average.y-7.0);
+            //     //interp_transform.target_translation = Vec3::new(average.x, 2.0, average.y-7.0);
 
-        //     //interp_transform.target_rotation = Quat::from_rotation_y(-average.x);
+            //     //interp_transform.target_rotation = Quat::from_rotation_y(-average.x);
 
-        //     //interp_transform.target_rotation *= Quat::from_rotation_x(average.x) + Quat::from_rotation_z(average.y);
+            //     //interp_transform.target_rotation *= Quat::from_rotation_x(average.x) + Quat::from_rotation_z(average.y);
 
-        //     // interp_transform.target_scale *= 1;
+            //     // interp_transform.target_scale *= 1;
 
-        //     // Set camera to loot at target
-        //     for mut transform in camera.iter_mut() {
-        //         // get target
-        //         // Set look at
-        //         transform.rotation = Transform::from_xyz(0.0, 2.0, 5.0)
-        //             .looking_at(interp_transform.target_translation, Vec3::Y)
-        //             .rotation;
-        //         info!("Target{:?}", interp_transform.target_translation);
-        //         info!("Camera{:?}", transform.rotation);
-        //     }
-        // }
+            //     // Set camera to loot at target
+            //     for mut transform in camera.iter_mut() {
+            //         // get target
+            //         // Set look at
+            //         transform.rotation = Transform::from_xyz(0.0, 2.0, 5.0)
+            //             .looking_at(interp_transform.target_translation, Vec3::Y)
+            //             .rotation;
+            //         info!("Target{:?}", interp_transform.target_translation);
+            //         info!("Camera{:?}", transform.rotation);
+            //     }
+        }
     }
 }
 
 // Keyboard control for webcam and app
 fn user_input_to_plugin_control_system(
     keyboard_input: Res<Input<KeyCode>>,
-    mut webcam_facial_control: ResMut<WebcamFacialControl>,
+    mut webcam_facial_control: ResMut<WebcamFacialController>,
     mut exit: EventWriter<AppExit>,
 ) {
     if keyboard_input.just_pressed(KeyCode::A) {
-        webcam_facial_control.0 = true;
+        webcam_facial_control.control = true;
     }
     if keyboard_input.just_pressed(KeyCode::S) {
-        webcam_facial_control.0 = false;
+        webcam_facial_control.control = false;
     }
     if keyboard_input.just_pressed(KeyCode::Escape) {
         exit.send(AppExit);

@@ -11,8 +11,8 @@ fn main() {
         // Add plugin with a *MUST* camera parameters
         .add_plugins(WebcamFacialPlugin {
             config_webcam_device: "/dev/video0".to_string(),
-            config_webcam_width: 640,
-            config_webcam_height: 480,
+            config_webcam_width: 320,
+            config_webcam_height: 240,
             config_webcam_framerate: 33,
             config_webcam_autostart: true,
         })
@@ -71,16 +71,6 @@ fn move_object(
     for event in reader.iter() {
         // Get raw data from event. Data is pretty noisy, needs manual smoothing/averaging or something else
         // (watch other examples for some ideas and better usage)
-        //
-        // Available fields: WebcamFacialData {
-        //      center_x: face center coordinates
-        //      center_y: face center coordinates
-        //      x: face rectangle start coordinates
-        //      y: face rectangle start coordinates
-        //      width:  face rectangle width
-        //      height: face rectangle height
-        //      score: probability of 'thing' being a face
-        //  }
         let x = event.0.center_x;
         let y = event.0.center_y;
         let width = event.0.width;
@@ -90,8 +80,8 @@ fn move_object(
             // Move object with x100 less influence
             transform.translation.x = -x as f32 / 100.0;
             transform.translation.z = y as f32 / 100.0;
-            // Scale object relative to face size (face area / 100000)
-            transform.scale = Vec3::splat((width * height) as f32 / 100000.0);
+            // Scale object relative to face size (face area / 10000)
+            transform.scale = Vec3::splat((width * height) as f32 / 10000.0);
         }
     }
 }

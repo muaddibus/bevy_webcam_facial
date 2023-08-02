@@ -2,13 +2,17 @@
 use bevy::{
     app::{App, Plugin, Update},
     ecs::{
+        component::Component,
+        entity::Entity,
         event::{Event, EventWriter},
-        system::{Res, ResMut, Resource},
+        system::{Commands, Query, Res, Resource},
     },
     log::{debug, error, info},
+    tasks::{AsyncComputeTaskPool, Task},
 };
 
 use crossbeam_channel::{bounded, Receiver, SendError, Sender};
+use futures_lite::future;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -34,25 +38,19 @@ pub struct WebcamFacialPlugin {
 }
 // Plugin configuration for webcam to be accesible from plugin system
 #[derive(Resource)]
-struct WebcamFacialPluginConfig {
-    webcam_device: String,
-    webcam_width: u32,
-    webcam_height: u32,
-    webcam_framerate: u32,
+pub struct WebcamFacialController {
+    pub sender: Sender<WebcamFacialData>,
+    pub receiver: Receiver<WebcamFacialData>,
+    pub control: bool,
+    pub status: Arc<AtomicBool>,
+    config_device: String,
+    config_width: u32,
+    config_height: u32,
+    config_framerate: u32,
 }
-// Inner flag to control task starting/stopping
-#[derive(Resource)]
-struct WebcamFacialTaskRunning(pub Arc<AtomicBool>);
 
-// External control for plugin
-#[derive(Resource)]
-pub struct WebcamFacialControl(pub bool);
-
-// Channels for data exchange between task and plugin
-#[derive(Resource)]
-struct WebcamFacialStreamReceiver(Receiver<WebcamFacialData>);
-#[derive(Resource)]
-struct WebcamFacialStreamSender(Sender<WebcamFacialData>);
+#[derive(Component)]
+struct WebcamFacialTask(Task<bool>);
 
 // WebcamFacialEvent event for sending WebcamFacialData to main Bevy app
 #[derive(Event)]
@@ -72,46 +70,50 @@ pub struct WebcamFacialData {
 
 impl Plugin for WebcamFacialPlugin {
     fn build(&self, app: &mut App) {
-        // Store plugins settings in resource
-        let plugin = WebcamFacialPluginConfig {
-            webcam_device: self.config_webcam_device.clone(),
-            webcam_width: self.config_webcam_width.clone(),
-            webcam_height: self.config_webcam_height.clone(),
-            webcam_framerate: self.config_webcam_framerate.clone(),
-        };
         // Add thread channels
-        let (sender, receiver) = bounded(1);
+        let (task_channel_sender, task_channel_receiver) = bounded(1);
+        let task_status = Arc::new(AtomicBool::new(false));
+        // Store plugins settings in resource
+        let plugin = WebcamFacialController {
+            sender: task_channel_sender,
+            receiver: task_channel_receiver,
+            control: self.config_webcam_autostart.clone(),
+            status: task_status,
+
+            config_device: self.config_webcam_device.clone(),
+            config_width: self.config_webcam_width.clone(),
+            config_height: self.config_webcam_height.clone(),
+            config_framerate: self.config_webcam_framerate.clone(),
+        };
 
         // Insert nesecary resources, events and systems
         app.insert_resource(plugin)
-            .insert_resource(WebcamFacialTaskRunning(Arc::new(AtomicBool::new(false))))
-            .insert_resource(WebcamFacialControl(self.config_webcam_autostart))
-            .insert_resource(WebcamFacialStreamReceiver(receiver))
-            .insert_resource(WebcamFacialStreamSender(sender))
             .add_event::<WebcamFacialDataEvent>()
-            .add_systems(Update, webcam_facial_task_runner)
-            .add_systems(Update, webcam_facial_proxy_system);
+            .add_systems(Update, webcam_facial_task_runner);
     }
 }
 
 fn webcam_facial_task_runner(
-    running: ResMut<WebcamFacialTaskRunning>,
-    control: Res<WebcamFacialControl>,
-    sender: Res<WebcamFacialStreamSender>,
-    config: Res<WebcamFacialPluginConfig>,
+    webcam_facial: Res<WebcamFacialController>,
+    mut commands: Commands,
+    mut task: Query<(Entity, &mut WebcamFacialTask)>,
+    mut events: EventWriter<WebcamFacialDataEvent>,
 ) {
     // If enabled and not running - start task
-    if control.0 & !running.0.load(Ordering::SeqCst) {
+    if webcam_facial.control & !webcam_facial.status.load(Ordering::SeqCst) {
         // Get Arc clones
-        let task_running = running.0.clone();
-        let sender_clone = sender.0.clone();
+        let task_running = webcam_facial.status.clone();
+        let sender_clone = webcam_facial.sender.clone();
 
-        let device_path = config.webcam_device.to_string();
-        let width = config.webcam_width;
-        let height = config.webcam_height;
-        let framerate = config.webcam_framerate;
-        info!("Starting webcam capture.");
-        std::thread::spawn(move || {
+        let device_path = webcam_facial.config_device.to_string();
+        let width = webcam_facial.config_width;
+        let height = webcam_facial.config_height;
+        let framerate = webcam_facial.config_framerate;
+
+        info!("Starting webcam capture. Launching capture and recognition task.");
+        let thread_pool = AsyncComputeTaskPool::get();
+
+        let task = thread_pool.spawn(async move {
             // Initialize webcam
             let mut camera = Camera::new(&device_path).unwrap();
             camera
@@ -122,12 +124,12 @@ fn webcam_facial_task_runner(
                     ..Default::default()
                 })
                 .unwrap_or_else(|_error| error!("Failed to start camera device!"));
-
+            // Initialize face detector
             let mut detector =
                 match rustface::create_detector(&"assets/NN_Models/seeta.bin".to_string()) {
                     Ok(detector) => detector,
                     Err(error) => {
-                        println!("Failed to create detector: {}", error.to_string());
+                        error!("Failed to create detector: {}", error.to_string());
                         std::process::exit(1)
                     }
                 };
@@ -182,29 +184,31 @@ fn webcam_facial_task_runner(
                 // Send processed data
                 match sender_clone.send(facial_data) {
                     Ok(()) => {
-                        debug!("Data from thread send.")
+                        debug!("Data from task sent.")
                     }
                     Err(SendError(data)) => {
-                        error!("Failed to send data: {:?}", data);
+                        error!("Failed to send task data: {:?}", data);
                     }
                 }
             }
-            info!("Camera stopped");
+            info!("Camera stopped. Task off.");
+            true
         });
+        commands.spawn(WebcamFacialTask(task));
         // Set flag that we started thread
-        running.0.store(true, Ordering::SeqCst);
+        webcam_facial.status.store(true, Ordering::SeqCst);
     }
     // If not enabled and task is running set flag to stop
-    if !control.0 & running.0.load(Ordering::SeqCst) {
-        running.0.store(false, Ordering::SeqCst);
+    if !webcam_facial.control & webcam_facial.status.load(Ordering::SeqCst) {
+        webcam_facial.status.store(false, Ordering::SeqCst);
     }
-}
-
-fn webcam_facial_proxy_system(
-    receiver: Res<WebcamFacialStreamReceiver>,
-    mut events: EventWriter<WebcamFacialDataEvent>,
-) {
-    while let Ok(data) = receiver.0.try_recv() {
+    for (entity, mut task) in &mut task {
+        if let Some(_status) = future::block_on(future::poll_once(&mut task.0)) {
+            // Task is complete, so remove task component from entity
+            commands.entity(entity).remove::<WebcamFacialTask>();
+        }
+    }
+    while let Ok(data) = webcam_facial.receiver.try_recv() {
         debug!("Send Bevy event {:?}", data);
         events.send(WebcamFacialDataEvent(data));
     }

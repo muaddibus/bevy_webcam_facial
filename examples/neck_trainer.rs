@@ -21,7 +21,7 @@ fn main() {
         })
         .add_plugins(HookPlugin)
         .add_systems(Startup, load_scene)
-        .add_systems(Update, (keyboard_animation_control,bone_move))
+        .add_systems(Update, (keyboard_animation_control, bone_move))
         .run();
 }
 

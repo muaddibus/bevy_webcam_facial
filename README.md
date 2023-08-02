@@ -1,13 +1,17 @@
 # About bevy_webcam_facial
 
-Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, finds face and provides all available data (face rectangle coordinates, its width and height, face probability) to Bevy game engine via events for further use in Bevy game engine.
+Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, finds face and provides all available data (face rectangle coordinates, face probability) to Bevy game engine via events for further use in Bevy game engine.
 
 ## Features
 
 * Webcam capture using [rscam](https://github.com/loyd/rscam/) via Linux V4L backend
 * Face position recognition using [rustface](https://github.com/atomashpolskiy/rustface)
 * Realtime and lightweight [SeetaFace Detection model](https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
-* Runs in separate task and doesnt block
+* Runs in separate Bevy AsyncTaskpool task without blocking
+
+## Plans
+- [ ] Windows / MacOSX webcam support
+- [ ] Several AI face recognition models to choose by default (simple frame, with face features like eyes/nose/mouth, full face mesh recognition, emotion detection...)
 
 ## Supported Platforms
 
@@ -15,47 +19,50 @@ Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, f
 - [ ] MacOSX
 - [ ] Windows
 
-
 ## Available for use in Bevy:
 
 ### Plugin config
 
 Needs several parameters when including in `.add_plugins`:
 ```rust
-app.add_plugins(WebcamFacialPlugin {
-    config_webcam_device: String,
-    config_webcam_width: u32,
-    config_webcam_height: u32,
-    config_webcam_framerate: u32,
-    config_webcam_autostart: bool,
-});
+.add_plugins(WebcamFacialPlugin {
+    config_webcam_device: "/dev/video0".to_string(),
+    config_webcam_width: 640,
+    config_webcam_height: 480,
+    config_webcam_framerate: 33,
+    config_webcam_autostart: true,
+})
 ```
 Parameters: 
 * Path to webcamera device ex."/dev/video0"
 * Width of frame: 640
 * Width of frame: 480
 * Frames per second: 33
-* Start capturing instantly after plugin activation: true/false (can be enabled anytime at runtime via <Res>WebcamFacialControl)
+* Start capturing and sending events instantly after plugin activation: true/false (can be enabled/disabled anytime at runtime via `ResMut<WebcamFacialController>`)
 
 ### Resources:
-Enable/disable webcam capture and recognition from Bevy via mutable `Resource`
+Enable/disable webcam capture and recognition from Bevy via mutable resource `ResMut<WebcamFacialController>`
 ```rust
-<ResMut>WebcamFacialControl bool
+pub struct WebcamFacialController {
+...
+    pub control: bool,
+...
+}
 ```
-### Event on data arival
+### Event with captured data
 ```rust
 <Event>WebcamFacialDataEvent
 ```
-### Data struct returned in Event
+### Data struct returned via Event
 ```rust
-WebcamFacialData {
-    center_x: i32,
-    center_y: i32,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    score: f32,
+pub struct WebcamFacialData {
+    pub center_x: i32,
+    pub center_y: i32,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub score: f32,
 }
 ```
 * [center_x) Face center point x coordinate
@@ -66,20 +73,30 @@ WebcamFacialData {
 * (height) Face rectangle frame height
 * (score) Probability of a detected object being a true face 0-30..
   
-## Usage in Examples:
+## Some ideas and use cases of data comming from plugin:
+* Controlling game object transformations (transform, rotate, scale)
+* Object control (car driving, player movement...)
+* Background movement in 2D games or camera movement in 3D games for better depth perception or 'looking around'
+* Camera FPS like movement (bit sceptic about that, maybe after implementing other tensorflow model)
+* Rotation around scenes, player or other objects
+* Zooming in scenes (map zoom, scene zoom, sniper zoom...)
+* Scaring horror games to pop beasts on detected face closeup
+* Your imagination...
 
+## Examples
 Three examples are provided in [examples] folder:
+(under construction)
+- [x] [object_mover](examples/object_mover.rs) - simplest example to move object using raw unfiltered/noisy data
+- [ ] [camera_control](examples/camera_control.rs) - control bevy camera view using filtered data
+- [ ] [neck_trainer](examples/neck_trainer.rs) - train you neck :) most complex example with filtered data + bone animation and skin
 
-* [object_mover](examples/object_mover.rs) - move object using raw unfiltered/noisy data
-* [camera_control](examples/camera_control.rs) - control bevy camera view using averaged data from camera
-* [neck_trainer](examples/neck_trainer.rs) - train you neck :) most complex example with averaged data + bone animation
+Unchecked - not finished
 
 ## Versions
 
-
 | bevy | bevy_webcam_facial  |
 |  ---:|                 ---:|
-| 0.11 | 0.1.0               |
+| 0.11 | 0.1.2               |
 
 
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
