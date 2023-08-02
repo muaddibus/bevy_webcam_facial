@@ -1,0 +1,3 @@
+Move everything what is possible to WebcamFacialPluginConfig
+Try https://github.com/oli-obk/camera_capture for Windows support
+Add smoothing to coordinates
