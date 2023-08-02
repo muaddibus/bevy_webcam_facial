@@ -11,14 +11,15 @@ Plugin for rust Bevy game engine. Captures webcam image, finds face and provides
 # Available for use in Bevy
 
 ## Plugin config
-
+```rust
 WebcamFacialPlugin {
-    * config_webcam_device: String      ( Path to webcamera device ex."/dev/video0" )
-    * config_webcam_width: u32          ( Width of frame: 640 )
-    * config_webcam_height: u32         ( Width of frame: 480 )
-    * config_webcam_framerate: u32      ( Frames per second: 33 )
-    * config_webcam_autostart: bool     ( Start capturing instantly after plugin activation: true/false ) ( If false can be enabled anytime at runtime via <Res>WebcamFacialControl )
+    config_webcam_device: String      ( Path to webcamera device ex."/dev/video0" )
+    config_webcam_width: u32          ( Width of frame: 640 )
+    config_webcam_height: u32         ( Width of frame: 480 )
+    config_webcam_framerate: u32      ( Frames per second: 33 )
+    config_webcam_autostart: bool     ( Start capturing instantly after plugin activation: true/false ) ( If false can be enabled anytime at runtime via <Res>WebcamFacialControl )
   }
+```
 
 ## Resources:
 
