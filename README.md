@@ -13,34 +13,35 @@ Plugin for rust Bevy game engine. Captures webcam image, finds face and provides
 ## Plugin config
 ```rust
 WebcamFacialPlugin {
-    config_webcam_device: String      ( Path to webcamera device ex."/dev/video0" )
-    config_webcam_width: u32          ( Width of frame: 640 )
-    config_webcam_height: u32         ( Width of frame: 480 )
-    config_webcam_framerate: u32      ( Frames per second: 33 )
-    config_webcam_autostart: bool     ( Start capturing instantly after plugin activation: true/false ) ( If false can be enabled anytime at runtime via <Res>WebcamFacialControl )
+    config_webcam_device: String        # Path to webcamera device ex."/dev/video0" 
+    config_webcam_width: u32            # Width of frame: 640 
+    config_webcam_height: u32           # Width of frame: 480 
+    config_webcam_framerate: u32        # Frames per second: 33 
+    config_webcam_autostart: bool       # Start capturing instantly after plugin activation: true/false
+                                        # If false can be enabled anytime at runtime via <Res>WebcamFacialControl
   }
 ```
 
 ## Resources:
-
-<Res>WebcamFacialControl Boolean - Enable/disable webcam capture and recognition
-
+```rust
+<Res>WebcamFacialControl bool           #Enable/disable webcam capture and recognition
+```
 ## Event on data arival
-
-WebcamFacialDataEvent
-
+```rust
+<Event>WebcamFacialDataEvent
+```
 ## Data struct returned in Event
-
+```rust
 WebcamFacialData {
-    * center_x: i32                     ( Face center point x coordinate )
-    * center_y: i32                     ( Face center point y coordinate )
-    * x: i32                            ( Face rectangle frame x coordinate )
-    * y: i32                            ( Face rectangle frame y coordinate )
-    * width: i32                        ( Face rectangle frame width )
-    * height: i32                       ( Face rectangle frame height )
-    * score: f32                        ( Probability of a detected object being a true face 0-30..)
+    center_x: i32                        # Face center point x coordinate 
+    center_y: i32                        # Face center point y coordinate 
+    x: i32                               # Face rectangle frame x coordinate 
+    y: i32                               # Face rectangle frame y coordinate 
+    width: i32                           # Face rectangle frame width 
+    height: i32                          # Face rectangle frame height 
+    score: f32                           # Probability of a detected object being a true face 0-30..
   }
-
+```
 # Usage in Examples:
 
 Three examples are provided in [examples] folder:
