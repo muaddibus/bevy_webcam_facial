@@ -4,10 +4,9 @@ version = "0.1.0"
 description = "Webcam AI face recognition plugin for bevy game engine"
 authors = ["Andrius Kokianciks <andrius.kokianciks@gmail.com>"]
 license = "MIT/Apache-2.0"
-#repository = "https://github.com/idanarye/bevy-tnua"
-#documentation = "https://docs.rs/bevy-tnua"
+repository = "https://github.com/muaddibus/bevy_webcam_facial"
 readme = "README.md"
-categories = ["game-development"]
+categories = ["game-engines"]
 keywords = ["bevy", "webcam", "recognition", "face"]
 edition = "2021"
 
