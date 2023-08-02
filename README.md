@@ -8,9 +8,9 @@ Plugin for rust Bevy game engine. Captures webcam image, finds face and provides
 * Face position recognition using [rustface](https://github.com/atomashpolskiy/) with realtime and lightweight [SeetaFace Detection model] (https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
 * Runs in separate task and doesnt block
 
-## Available for use in Bevy
+# Available for use in Bevy
 
-# Plugin config
+## Plugin config
 
 WebcamFacialPlugin {
     * config_webcam_device: String      ( Path to webcamera device ex."/dev/video0" )
@@ -20,15 +20,15 @@ WebcamFacialPlugin {
     * config_webcam_autostart: bool     ( Start capturing instantly after plugin activation: true/false ) ( If false can be enabled anytime at runtime via <Res>WebcamFacialControl )
   }
 
-# Resources:
+## Resources:
 
 <Res>WebcamFacialControl Boolean - Enable/disable webcam capture and recognition
 
-# Event on data arival
+## Event on data arival
 
 WebcamFacialDataEvent
 
-# Data struct returned in Event
+## Data struct returned in Event
 
 WebcamFacialData {
     * center_x: i32                     ( Face center point x coordinate )
@@ -40,7 +40,7 @@ WebcamFacialData {
     * score: f32                        ( Probability of a detected object being a true face 0-30..)
   }
 
-## Usage in Examples:
+# Usage in Examples:
 
 Three examples are provided in [examples] folder:
 
@@ -48,7 +48,7 @@ Three examples are provided in [examples] folder:
 * camera_control - control bevy camera view using averaged data from camera + interpolation
 * neck_trainer - train you neck :) most complex example with averaged data + interpolation + bone animation
 
-## Versions
+# Versions
 
 +------+---------------------+
 | bevy | bevy_webcam_facial  |
@@ -58,7 +58,7 @@ Three examples are provided in [examples] folder:
 
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 
-## Reference Material
+# Reference Material
 
 The following were used for coding of plugin:
 
@@ -76,7 +76,7 @@ Additional interesting sources about [tensorflow] engine, which was succesfully 
 * https://storage.googleapis.com/tfjs-models/demos/face-landmarks-detection/index.html?model=mediapipe_face_mesh
 * https://vaaaaanquish.github.io/Awesome-Rust-MachineLearning/#image-processing
 
-## License
+# License
 
 Licensed under either of
 
