@@ -56,7 +56,7 @@ struct WebcamFacialStreamSender(Sender<WebcamFacialData>);
 
 // WebcamFacialEvent event for sending WebcamFacialData to main Bevy app
 #[derive(Event)]
-pub struct WebcamFacialDataEvent(WebcamFacialData);
+pub struct WebcamFacialDataEvent(pub WebcamFacialData);
 
 // Data structure to be exchanged with Bevy
 #[derive(Default, Debug)]

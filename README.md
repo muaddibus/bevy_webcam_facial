@@ -1,64 +1,45 @@
 # About bevy_webcam_facial
 
-Plugin for rust [Bevy](https://bevyengine.org/) game engine. Captures webcam image, finds face and provides all available data (face rectangle coordinates, its width and height, face probability) to Bevy game engine via events for further use in Bevy game engine.
+Captures webcam image, finds face and provides all available data (face rectangle coordinates, its width and height, face probability) to Bevy game engine via events for further use in Bevy game engine.
 
 ## Features
 
 * Webcam capture using [rscam] (https://github.com/loyd/rscam/) via Linux V4L backend
-* Face position recognition using [rustface](https://github.com/atomashpolskiy/rustface)
-* Realtime and lightweight [SeetaFace Detection model](https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
+* Face position recognition using [rustface](https://github.com/atomashpolskiy/) with realtime and lightweight [SeetaFace Detection model] (https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
 * Runs in separate task and doesnt block
 
-## Available for use in Bevy:
+## Available for use in Bevy
 
-### Plugin config
+# Plugin config
 
-Needs several parameters when including in `.add_plugins`:
-```rust
-app.add_plugins(WebcamFacialPlugin {
-    config_webcam_device: String,
-    config_webcam_width: u32,
-    config_webcam_height: u32,
-    config_webcam_framerate: u32,
-    config_webcam_autostart: bool,
-});
-```
-Parameters: 
-* Path to webcamera device ex."/dev/video0"
-* Width of frame: 640
-* Width of frame: 480
-* Frames per second: 33
-* Start capturing instantly after plugin activation: true/false # can be enabled anytime at runtime via <Res>WebcamFacialControl
+WebcamFacialPlugin {
+    * config_webcam_device: String      ( Path to webcamera device ex."/dev/video0" )
+    * config_webcam_width: u32          ( Width of frame: 640 )
+    * config_webcam_height: u32         ( Width of frame: 480 )
+    * config_webcam_framerate: u32      ( Frames per second: 33 )
+    * config_webcam_autostart: bool     ( Start capturing instantly after plugin activation: true/false ) ( If false can be enabled anytime at runtime via )
+  }
 
-### Resources:
-Enable/disable webcam capture and recognition from Bevy via mutable `Resource`
-```rust
-<ResMut>WebcamFacialControl bool
-```
-### Event on data arival
-```rust
-<Event>WebcamFacialDataEvent
-```
-### Data struct returned in Event
-```rust
+# Resources:
+
+<Res>WebcamFacialControl Boolean - Enable/disable webcam capture and recognition
+
+# Event on data arival
+
+WebcamFacialDataEvent
+
+# Data struct returned in Event
+
 WebcamFacialData {
-    center_x: i32,
-    center_y: i32,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    score: f32,
-}
-```
-* [center_x) Face center point x coordinate
-* (center_y) Face center point y coordinate
-* (x) Face rectangle frame x coordinate
-* (y) Face rectangle frame y coordinate
-* (width) Face rectangle frame width
-* (height) Face rectangle frame height
-* (score) Probability of a detected object being a true face 0-30..
-  
+    * center_x: i32                     ( Face center point x coordinate )
+    * center_y: i32                     ( Face center point y coordinate )
+    * x: i32                            ( Face rectangle frame x coordinate )
+    * y: i32                            ( Face rectangle frame y coordinate )
+    * width: i32                        ( Face rectangle frame width )
+    * height: i32                       ( Face rectangle frame height )
+    * score: f32                        ( Probability of a detected object being a true face 0-30..)
+  }
+
 ## Usage in Examples:
 
 Three examples are provided in [examples] folder:
@@ -69,11 +50,11 @@ Three examples are provided in [examples] folder:
 
 ## Versions
 
-
++------+---------------------+
 | bevy | bevy_webcam_facial  |
-|  ---:|                 ---:|
+|------+---------------------|
 | 0.11 | 0.1.0               |
-
++------+---------------------+
 
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 
@@ -81,19 +62,19 @@ Three examples are provided in [examples] folder:
 
 The following were used for coding of plugin:
 
-* [Bevy The Book](https://bevyengine.org/learn/book/)
-* [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/0)
-* [Bevy Third Party Plugin Guidelines](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md)
-* [rustface](https://github.com/atomashpolskiy/rustface)
+* [Bevy The Book] https://bevyengine.org/learn/book/
+* [Unofficial Bevy Cheat Book] https://bevy-cheatbook.github.io/
+* [Bevy Third Party Plugin Guidelines] https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md
+* [rustface] https://github.com/atomashpolskiy/rustface
 
-Additional interesting sources for future research:
+Additional interesting sources about [tensorflow] engine, which was succesfully tested earlier. Bloats dependencies, but have lots of potential for full face data recognition with different models, animated face mash creation:
 
-* [Tensorflow rust](https://github.com/tensorflow/rust/) 
-* [Face Detection with Tensorflow Rust](https://cetra3.github.io/blog/face-detection-with-tensorflow-rust/) (Was succesfully tested earlier)
-* [Tensorflow model implementing the mtcnn face detector](https://github.com/blaueck/tf-mtcnn/)
+* [Tensorflow] https://github.com/tensorflow/rust/
+* https://cetra3.github.io/blog/face-detection-with-tensorflow-rust/ [Face Detection with Tensorflow Rust]
+* https://github.com/blaueck/tf-mtcnn/
 * https://github.com/cetra3/mtcnn/
-* [tfjs-model web demo of face mesh](https://storage.googleapis.com/tfjs-models/demos/face-landmarks-detection/index.html?model=mediapipe_face_mesh)
-* [Awesome-Rust-MachineLearning Docs/Projects](https://github.com/vaaaaanquish/Awesome-Rust-MachineLearning/)
+* https://storage.googleapis.com/tfjs-models/demos/face-landmarks-detection/index.html?model=mediapipe_face_mesh
+* https://vaaaaanquish.github.io/Awesome-Rust-MachineLearning/#image-processing
 
 ## License
 
