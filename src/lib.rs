@@ -113,6 +113,7 @@ fn webcam_facial_task_runner(
         info!("Starting webcam capture.");
         std::thread::spawn(move || {
             // Initialize webcam
+            // TODO Try https://github.com/oli-obk/camera_capture for Windows support
             let mut camera = Camera::new(&device_path).unwrap();
             camera
                 .start(&Config {

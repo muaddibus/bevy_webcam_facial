@@ -24,8 +24,7 @@ fn main() {
         .add_plugins(HookPlugin)
         .add_plugins(InterpPlugin)
         .add_systems(Startup, load_scene)
-        .add_systems(Update, keyboard_animation_control)
-        .add_systems(Update, (bone_move))
+        .add_systems(Update, (keyboard_animation_control,bone_move))
         .run();
 }
 
@@ -89,11 +88,4 @@ fn bone_move(
             head.translation += 0.005;
         }
     }
-}
-
-//function to smooth/limit results (Tahn)
-fn tahnf(x: f32) -> f32 {
-    let ex = x.exp();
-    let emx = (-x).exp();
-    (ex - emx) / (ex + emx)
 }
