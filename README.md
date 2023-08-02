@@ -9,6 +9,13 @@ Plugin for rust [Bevy](https://bevyengine.org/) game engine. Captures webcam ima
 * Realtime and lightweight [SeetaFace Detection model](https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
 * Runs in separate task and doesnt block
 
+## Supported Platforms
+
+- [x] Linux via v4l2
+- [ ] MacOSX
+- [ ] Windows
+
+
 ## Available for use in Bevy:
 
 ### Plugin config
