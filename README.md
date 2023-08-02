@@ -1,10 +1,10 @@
 # About bevy_webcam_facial
 
-Plugin for rust [Bevy](https://bevyengine.org/) game engine. Captures webcam image, finds face and provides all available data (face rectangle coordinates, its width and height, face probability) to Bevy game engine via events for further use in Bevy game engine.
+Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, finds face and provides all available data (face rectangle coordinates, its width and height, face probability) to Bevy game engine via events for further use in Bevy game engine.
 
 ## Features
 
-* Webcam capture using [rscam] (https://github.com/loyd/rscam/) via Linux V4L backend
+* Webcam capture using [rscam](https://github.com/loyd/rscam/) via Linux V4L backend
 * Face position recognition using [rustface](https://github.com/atomashpolskiy/rustface)
 * Realtime and lightweight [SeetaFace Detection model](https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
 * Runs in separate task and doesnt block
@@ -35,7 +35,7 @@ Parameters:
 * Width of frame: 640
 * Width of frame: 480
 * Frames per second: 33
-* Start capturing instantly after plugin activation: true/false # can be enabled anytime at runtime via <Res>WebcamFacialControl
+* Start capturing instantly after plugin activation: true/false (can be enabled anytime at runtime via <Res>WebcamFacialControl)
 
 ### Resources:
 Enable/disable webcam capture and recognition from Bevy via mutable `Resource`
