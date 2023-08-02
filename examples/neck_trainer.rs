@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use bevy_scene_hook::{HookPlugin, HookedSceneBundle, SceneHook};
 
-use bevy_mod_interp::*;
-
 use bevy_webcam_facial::*;
 
 fn main() {
