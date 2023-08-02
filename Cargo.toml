@@ -20,8 +20,6 @@ image = "0.24.6"
 
 [dev_dependencies]
 bevy-scene-hook = "7.0.0"
-bevy_mod_interp = { path = "examples/bevy_mod_interp" }
-
 
 [[example]]
 name = "object_mover"
