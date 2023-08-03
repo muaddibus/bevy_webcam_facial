@@ -1,3 +1,5 @@
+[![Rust](https://github.com/muaddibus/bevy_webcam_facial/actions/workflows/rust.yml/badge.svg)](https://github.com/muaddibus/bevy_webcam_facial/actions/workflows/rust.yml)
+
 # About bevy_webcam_facial
 
 Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, finds face and provides all available data (face rectangle coordinates, face probability) to Bevy game engine via events for further use in Bevy game engine.
