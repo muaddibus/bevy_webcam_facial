@@ -1,4 +1,3 @@
-[ ] Add smoothing
-[ ] Add calculation of coordinates so range doesnt change on different resolutions
-[ ] Finish examples
+[ ] Make demo scene for advances examples
+[ ] Finish third example
 [ ] Try https://github.com/oli-obk/camera_capture for Windows support

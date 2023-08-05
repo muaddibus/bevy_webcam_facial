@@ -26,6 +26,10 @@ use rustface::ImageData;
 // image utils
 use image::{DynamicImage, ImageBuffer};
 
+mod filter;
+pub use filter::SmoothingFilterType;
+use filter::WebcamFacialDataFiltered;
+
 // Plugin that reads webcamera, detects face calculates frame box
 // and sends coordinates to Bevy as Event.
 // (Coordinates 0,0 are in the center of camera frame)
@@ -35,6 +39,8 @@ pub struct WebcamFacialPlugin {
     pub config_webcam_height: u32,
     pub config_webcam_framerate: u32,
     pub config_webcam_autostart: bool,
+    pub config_filter_type: SmoothingFilterType,
+    pub config_filter_length: u32,
 }
 // Plugin configuration for webcam to be accesible from plugin system
 #[derive(Resource)]
@@ -47,6 +53,8 @@ pub struct WebcamFacialController {
     config_width: u32,
     config_height: u32,
     config_framerate: u32,
+    config_filter_type: SmoothingFilterType,
+    config_filter_length: u32,
 }
 
 #[derive(Component)]
@@ -57,16 +65,18 @@ struct WebcamFacialTask(Task<bool>);
 pub struct WebcamFacialDataEvent(pub WebcamFacialData);
 
 // Data structure to be exchanged with Bevy
-#[derive(Default, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct WebcamFacialData {
-    pub center_x: i32,
-    pub center_y: i32,
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
+    pub center_x: f32,
+    pub center_y: f32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
     pub score: f32,
 }
+
+
 
 impl Plugin for WebcamFacialPlugin {
     fn build(&self, app: &mut App) {
@@ -84,6 +94,8 @@ impl Plugin for WebcamFacialPlugin {
             config_width: self.config_webcam_width.clone(),
             config_height: self.config_webcam_height.clone(),
             config_framerate: self.config_webcam_framerate.clone(),
+            config_filter_type: self.config_filter_type.clone(),
+            config_filter_length: self.config_filter_length.clone(),
         };
 
         // Insert nesecary resources, events and systems
@@ -106,20 +118,21 @@ fn webcam_facial_task_runner(
         let sender_clone = webcam_facial.sender.clone();
 
         let device_path = webcam_facial.config_device.to_string();
-        let width = webcam_facial.config_width;
-        let height = webcam_facial.config_height;
-        let framerate = webcam_facial.config_framerate;
+        let camera_width = webcam_facial.config_width;
+        let camera_height = webcam_facial.config_height;
+        let camera_framerate = webcam_facial.config_framerate;
+        let filter_type = webcam_facial.config_filter_type;
+        let filter_length = webcam_facial.config_filter_length;
 
         info!("Starting webcam capture. Launching capture and recognition task.");
         let thread_pool = AsyncComputeTaskPool::get();
-
         let task = thread_pool.spawn(async move {
             // Initialize webcam
             let mut camera = Camera::new(&device_path).unwrap();
             camera
                 .start(&Config {
-                    interval: (1, framerate),
-                    resolution: (width, height),
+                    interval: (1, camera_framerate),
+                    resolution: (camera_width, camera_height),
                     format: b"YUYV",
                     ..Default::default()
                 })
@@ -139,20 +152,23 @@ fn webcam_facial_task_runner(
             detector.set_pyramid_scale_factor(0.8);
             detector.set_slide_window_step(4, 4);
 
+            // TODO add config parse
+            let mut smoothed = WebcamFacialDataFiltered::new(filter_length, filter_type);
+
             while task_running.load(Ordering::SeqCst) {
                 // Get frame from buffer
                 let buf = camera.capture().expect("Failed to get frame!");
-                let rgb_frame = yuyv_to_rgb(&buf, width as usize, height as usize);
+                let rgb_frame = yuyv_to_rgb(&buf, camera_width as usize, camera_height as usize);
                 // Create a new ImageBuffer from converting Vec<u8>
                 let image_buffer: ImageBuffer<image::Rgb<u8>, Vec<u8>> =
-                    ImageBuffer::from_vec(width, height, rgb_frame)
+                    ImageBuffer::from_vec(camera_width, camera_height, rgb_frame)
                         .expect("Failed to create ImageBuffer");
                 // Convert ImageBuffer to DynamicImage
                 let image: DynamicImage = DynamicImage::ImageRgb8(image_buffer);
                 // Convert to grayscale image buffer
                 let gray = image.to_luma8();
                 // Get Image data from buffer data
-                let mut grayscale_image_data = ImageData::new(&gray, width, height);
+                let mut grayscale_image_data = ImageData::new(&gray, camera_width, camera_height);
                 // Detect face data
                 let faces = detector.detect(&mut grayscale_image_data);
 
@@ -164,25 +180,35 @@ fn webcam_facial_task_runner(
                 match max_face {
                     Some(max_face) => {
                         debug!("Max score face: {:?}", max_face);
-                        // Take face rectangle coords
-                        // Calculate "nose" coords relative from center of image ( image center is 0,0)
-                        facial_data.x = faces[0].bbox().x() as i32;
-                        facial_data.y = faces[0].bbox().y() as i32;
-                        facial_data.width = faces[0].bbox().width() as i32;
-                        facial_data.height = faces[0].bbox().height() as i32;
+                        // Take face rectangle coords and score
+                        facial_data.x = faces[0].bbox().x() as f32;
+                        facial_data.y = faces[0].bbox().y() as f32;
+                        facial_data.width = faces[0].bbox().width() as f32;
+                        facial_data.height = faces[0].bbox().height() as f32;
                         facial_data.score = faces[0].score() as f32;
-                        // center x = (rect_w/2 + x) - (image_w/2)
-                        facial_data.center_x =
-                            (facial_data.width / 2 + facial_data.x) - (width / 2) as i32;
-                        facial_data.center_y =
-                            (facial_data.height / 2 + facial_data.y) - (height / 2) as i32;
+
+                        // Calculate the scale factor to map the camera resolution
+                        let w_scale_factor = 100.0 / camera_width as f32;
+                        let h_scale_factor = 100.0 / camera_width as f32;
+
+                        // Calculate the coordinates and dimensions in the desired range (-50.0) to (50.0)
+                        facial_data.x = facial_data.x * w_scale_factor - 50.0;
+                        facial_data.y = facial_data.y * h_scale_factor - 50.0;
+                        facial_data.width = facial_data.width * w_scale_factor;
+                        facial_data.height = facial_data.height as f32 * h_scale_factor;
+                        facial_data.center_x = (2.0 * facial_data.x + facial_data.width) / -2.0; // minus flips values so negative is left
+                        facial_data.center_y = (2.0 * facial_data.y + facial_data.height) / 2.0;
+
                     }
                     None => {
                         debug!("No faces found. Using default zero values.");
                     }
                 }
+                smoothed.push(facial_data);
+
+
                 // Send processed data
-                match sender_clone.send(facial_data) {
+                match sender_clone.send(smoothed.get()) {
                     Ok(()) => {
                         debug!("Data from task sent.")
                     }

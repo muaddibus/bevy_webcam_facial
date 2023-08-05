@@ -18,6 +18,8 @@ fn main() {
             config_webcam_height: 480,
             config_webcam_framerate: 33,
             config_webcam_autostart: true,
+            config_filter_length: 15,
+            config_filter_type: SmoothingFilterType::LowPass(0.1),
         })
         .add_plugins(HookPlugin)
         .add_systems(Startup, load_scene)

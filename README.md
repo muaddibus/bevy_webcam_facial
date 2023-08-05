@@ -10,6 +10,7 @@ Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, f
 * Face position recognition using [rustface](https://github.com/atomashpolskiy/rustface)
 * Realtime and lightweight [SeetaFace Detection model](https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
 * Runs in separate Bevy AsyncTaskpool task without blocking
+* 2 data smoothing/denoising filters
 
 ## Plans
 - [ ] Windows / MacOSX webcam support
@@ -33,6 +34,8 @@ Needs several parameters when including in `.add_plugins`:
     config_webcam_height: 480,
     config_webcam_framerate: 33,
     config_webcam_autostart: true,
+    config_filter_type: SmoothingFilterType::LowPass(0.1),
+    config_filter_length: 10,
 })
 ```
 Parameters: 
@@ -41,6 +44,8 @@ Parameters:
 * Width of frame: 480
 * Frames per second: 33
 * Start capturing and sending events instantly after plugin activation: true/false (can be enabled/disabled anytime at runtime via `ResMut<WebcamFacialController>`)
+* Smoothing filter for coordinates (currently: MeanMedian, LowPass(f32), NoFilter)
+* From how much frames take data for smoothing 5-10 optimal (more frames - more smooth movement but slow response)
 
 ### Resources:
 Enable/disable webcam capture and recognition from Bevy via mutable resource `ResMut<WebcamFacialController>`
@@ -58,15 +63,16 @@ pub struct WebcamFacialController {
 ### Data struct returned via Event
 ```rust
 pub struct WebcamFacialData {
-    pub center_x: i32,
-    pub center_y: i32,
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
+    pub center_x: f32,
+    pub center_y: f32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
     pub score: f32,
 }
 ```
+Coordinates are mapped as floating point number in range of -50.0 .. 50.0, camera resolution doesn't matter
 * [center_x) Face center point x coordinate
 * (center_y) Face center point y coordinate
 * (x) Face rectangle frame x coordinate
@@ -74,12 +80,14 @@ pub struct WebcamFacialData {
 * (width) Face rectangle frame width
 * (height) Face rectangle frame height
 * (score) Probability of a detected object being a true face 0-30..
-  
+
+
 ## Some ideas and use cases of data comming from plugin:
+* Use some interpolation for transforms for smoother transforms like "bevy_easings" or "bevy_mod_interp"
 * Controlling game object transformations (transform, rotate, scale)
 * Object control (car driving, player movement...)
-* Background movement in 2D games or camera movement in 3D games for better depth perception or 'looking around'
-* Camera FPS like movement (bit sceptic about that, maybe after implementing other tensorflow model)
+* Background scene movement in 2D games or background scene movement in 3D top/side view games for better depth perception or 'looking around'
+* Camera FPS like movement (needs easing/interpolation)
 * Rotation around scenes, player or other objects
 * Zooming in scenes (map zoom, scene zoom, sniper zoom...)
 * Scaring horror games to pop beasts on detected face closeup
@@ -89,7 +97,7 @@ pub struct WebcamFacialData {
 Three examples are provided in [examples] folder:
 (under construction)
 - [x] [object_mover](examples/object_mover.rs) - simplest example to move object using raw unfiltered/noisy data
-- [ ] [camera_control](examples/camera_control.rs) - control bevy camera view using filtered data
+- [x] [camera_control](examples/camera_control.rs) - control bevy camera view using filtered data
 - [ ] [neck_trainer](examples/neck_trainer.rs) - train you neck :) most complex example with filtered data + bone animation and skin
 
 Unchecked - not finished
@@ -98,8 +106,9 @@ Unchecked - not finished
 
 | bevy | bevy_webcam_facial  |
 |  ---:|                 ---:|
+| 0.11 | 0.1.3               |
 | 0.11 | 0.1.2               |
-
+| 0.11 | 0.1.1               |
 
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 

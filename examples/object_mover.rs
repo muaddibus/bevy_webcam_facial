@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::pbr::DirectionalLightShadowMap;
 
 use bevy_webcam_facial::*;
 
@@ -7,14 +8,19 @@ struct WebcamControlledObject;
 
 fn main() {
     App::new()
+        .insert_resource(DirectionalLightShadowMap { size: 2048 })
         .add_plugins(DefaultPlugins)
         // Add plugin with a *MUST* camera parameters
         .add_plugins(WebcamFacialPlugin {
             config_webcam_device: "/dev/video0".to_string(),
-            config_webcam_width: 320,
-            config_webcam_height: 240,
+            config_webcam_width: 640,
+            config_webcam_height: 480,
             config_webcam_framerate: 33,
             config_webcam_autostart: true,
+            // Setting Mean median filter to filter coordinate noise
+            config_filter_type: SmoothingFilterType::MeanMedian,
+            // Taking last 10 frames data for filter
+            config_filter_length: 10,
         })
         .add_systems(Startup, setup)
         // Add system to read data events and do something with data
@@ -48,11 +54,11 @@ fn setup(
     // Some light
     commands.spawn(PointLightBundle {
         point_light: PointLight {
-            intensity: 1500.0,
+            intensity: 500.0,
             shadows_enabled: true,
             ..default()
         },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        transform: Transform::from_xyz(0.0, 4.0, 0.0),
         ..default()
     });
     // Camera for scene
@@ -63,25 +69,21 @@ fn setup(
 }
 
 fn move_object(
-    // Get object with WebcamControlledObject
+    // Get object to control with WebcamControlledObject
     mut query: Query<&mut Transform, With<WebcamControlledObject>>,
     // Read data event with camera data
     mut reader: EventReader<WebcamFacialDataEvent>,
 ) {
     for event in reader.iter() {
-        // Get raw data from event. Data is pretty noisy, needs manual smoothing/averaging or something else
-        // (watch other examples for some ideas and better usage)
+        // Get data from event.
         let x = event.0.center_x;
         let y = event.0.center_y;
-        let width = event.0.width;
-        let height = event.0.height;
-        // Do basic transforms
+        // Print coords and do basic transforms
+        info!("{:?} {:?}",x,y);
         for mut transform in query.iter_mut() {
-            // Move object with x100 less influence
-            transform.translation.x = -x as f32 / 100.0;
-            transform.translation.z = y as f32 / 100.0;
-            // Scale object relative to face size (face area / 10000)
-            transform.scale = Vec3::splat((width * height) as f32 / 10000.0);
+            // Move object with x10 less influence, also add 2 to z transform
+            transform.translation.x = x as f32 / 10.0;
+            transform.translation.z = y as f32 / 10.0 + 2.0;
         }
     }
 }
