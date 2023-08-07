@@ -32,7 +32,6 @@ mod filter;
 pub use filter::SmoothingFilterType;
 use filter::WebcamFacialDataFiltered;
 
-
 pub struct WebcamFacialPlugin {
     pub config_webcam_device: u32,
     pub config_webcam_width: u32,
@@ -137,10 +136,15 @@ fn webcam_facial_task_runner(
 
         info!("Starting webcam capture. Launching capture and recognition task.");
         let thread_pool = AsyncComputeTaskPool::get();
-        // Main task loop 
+        // Main task loop
         let task = thread_pool.spawn(async move {
             // Initialize webcam
-            let mut cam_iter = match get_camera_frame_iterator(camera_device, camera_width, camera_height, camera_framerate) {
+            let mut cam_iter = match get_camera_frame_iterator(
+                camera_device,
+                camera_width,
+                camera_height,
+                camera_framerate,
+            ) {
                 Some(iter) => iter,
                 None => {
                     error!("Camera setup failed. Continuing without camera.");
@@ -154,7 +158,7 @@ fn webcam_facial_task_runner(
                     Ok(detector) => {
                         info!("Using assets/NN_Models/seeta.bin recognition model.");
                         detector
-                    },
+                    }
                     Err(error) => {
                         error!("Failed to create detector: {}", error.to_string());
                         std::process::exit(1)
@@ -174,11 +178,14 @@ fn webcam_facial_task_runner(
                 // Convert RGB frame to grayscale
                 let grayscale_image = ImageBuffer::from_fn(camera_width, camera_height, |x, y| {
                     let rgb_pixel = *rgb_frame.get_pixel(x, y);
-                    let gray_value = rgb_pixel[0] as u32 * 77 + rgb_pixel[1] as u32 * 150 + rgb_pixel[2] as u32 * 29;
+                    let gray_value = rgb_pixel[0] as u32 * 77
+                        + rgb_pixel[1] as u32 * 150
+                        + rgb_pixel[2] as u32 * 29;
                     Luma([((gray_value >> 8) & 0xFF) as u8])
                 });
                 // Get Image data from buffer data
-                let grayscale_image_data = ImageData::new(&grayscale_image, camera_width, camera_height);
+                let grayscale_image_data =
+                    ImageData::new(&grayscale_image, camera_width, camera_height);
 
                 // Detect face data in privided image data
                 let faces = detector.detect(&grayscale_image_data);
@@ -209,14 +216,12 @@ fn webcam_facial_task_runner(
                         facial_data.height = facial_data.height as f32 * h_scale_factor;
                         facial_data.center_x = (2.0 * facial_data.x + facial_data.width) / -2.0; // minus flips values so negative is left
                         facial_data.center_y = (2.0 * facial_data.y + facial_data.height) / 2.0;
-
                     }
                     None => {
                         debug!("No faces found. Using default zero values.");
                     }
                 }
                 filtered_data.push(facial_data);
-
 
                 // Send processed data
                 match sender_clone.send(filtered_data.get()) {
@@ -251,7 +256,12 @@ fn webcam_facial_task_runner(
     }
 }
 
-fn get_camera_frame_iterator(camera_device: u32, camera_width: u32, camera_height: u32, camera_framerate: u32) -> Option<camera_capture::ImageIterator> {
+fn get_camera_frame_iterator(
+    camera_device: u32,
+    camera_width: u32,
+    camera_height: u32,
+    camera_framerate: u32,
+) -> Option<camera_capture::ImageIterator> {
     // Create the camera device
     let camera_device = match camera_capture::create(camera_device) {
         Ok(device) => {
@@ -260,18 +270,24 @@ fn get_camera_frame_iterator(camera_device: u32, camera_width: u32, camera_heigh
             #[cfg(windows)]
             info!("Using camera ID:{}.", camera_device);
             device
-        },
+        }
         Err(err) => {
-            error!("Error creating camera device [{}]: {:?}", camera_device, err);
+            error!(
+                "Error creating camera device [{}]: {:?}",
+                camera_device, err
+            );
             return None;
         }
     };
     // Set the resolution
     let resolution_device = match camera_device.resolution(camera_width, camera_height) {
         Ok(resolution) => {
-            info!("Camera resolution set to {}x{}.", camera_width, camera_height);
+            info!(
+                "Camera resolution set to {}x{}.",
+                camera_width, camera_height
+            );
             resolution
-        },
+        }
         Err(err) => {
             error!("Error setting camera resolution: {:?}", err);
             return None;
@@ -282,7 +298,7 @@ fn get_camera_frame_iterator(camera_device: u32, camera_width: u32, camera_heigh
         Ok(fps) => {
             info!("Camera fps set to {}.", camera_framerate);
             fps.start()
-        },
+        }
         Err(err) => {
             error!("Error setting camera frame rate: {:?}", err);
             return None;
