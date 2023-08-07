@@ -18,7 +18,7 @@ Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, f
 
 ## Supported Platforms
 
-- [x] Linux via v4l2 [rscam]
+- [x] Linux
 - [ ] MacOSX
 - [x] Windows
 
@@ -32,20 +32,22 @@ Several parameters when including in `.add_plugins` or use default camera and se
     config_webcam_device: 0,
     config_webcam_width: 640,
     config_webcam_height: 480,
-    config_webcam_framerate: 30,
+    config_webcam_framerate: 15,
     config_webcam_autostart: true,
     config_filter_type: SmoothingFilterType::LowPass(0.1),
-    config_filter_length: 15,
+    config_filter_length: 10,
 })
 ```
 Parameters: 
-* Path to webcamera device ex.0,1,2...
+* Webcamera device number (0-first default) ex.0,1,2...
+    * Linux: Number get appended to `/dev/video{number}`
+    * Windows: Device number
 * Width of frame: 640
 * Width of frame: 480
-* Frames per second: 30
+* Frames per second: 15
 * Start capturing and sending events instantly after plugin activation: true/false (can be enabled/disabled anytime at runtime via `ResMut<WebcamFacialController>`)
 * Smoothing filter for coordinates (currently: MeanMedian, LowPass(f32), NoFilter)
-* From how much frames take data for smoothing 5-10 optimal (more frames - more smooth movement but slow response)
+* From how many frames take data for smoothing 5-10 optimal (more frames - less noisy data, but slower response)
 
 ### Resources:
 Enable/disable webcam capture and recognition from Bevy via mutable resource `ResMut<WebcamFacialController>`
@@ -83,15 +85,17 @@ Coordinates are mapped as floating point number in range of -50.0 .. 50.0, camer
 
 
 ## Some ideas and use cases of data comming from plugin:
-* Use some interpolation for transforms for smoother transforms like "bevy_easings" or "bevy_mod_interp"
 * Controlling game object transformations (transform, rotate, scale)
 * Object control (car driving, player movement...)
 * Background scene movement in 2D games or background scene movement in 3D top/side view games for better depth perception or 'looking around'
-* Camera FPS like movement (needs easing/interpolation)
+* Camera FPS like movement
 * Rotation around scenes, player or other objects
 * Zooming in scenes (map zoom, scene zoom, sniper zoom...)
 * Scaring horror games to pop beasts on detected face closeup
 * Your imagination...
+
+*Note: Use some interpolation for transforms for smoother transforms like "bevy_easings" or "bevy_mod_interp"
+
 
 ## Examples
 Three examples are provided in [examples] folder:
@@ -106,6 +110,7 @@ Unchecked - not finished
 
 | bevy | bevy_webcam_facial  |
 |  ---:|                 ---:|
+| 0.11 | 0.1.4               |
 | 0.11 | 0.1.3               |
 | 0.11 | 0.1.2               |
 | 0.11 | 0.1.1               |

@@ -1,6 +1,5 @@
 // Plugin that reads webcamera, detects face calculates frame box
 // and sends coordinates to Bevy as Event.
-// (Coordinates 0,0 are in the center of camera frame)
 
 use bevy::{
     app::{App, Plugin, Update},
@@ -8,7 +7,7 @@ use bevy::{
         component::Component,
         entity::Entity,
         event::{Event, EventWriter},
-        system::{Commands, Query, Res, Resource},
+        system::{Commands, Query, ResMut, Resource},
     },
     log::{debug, error, info},
     tasks::{AsyncComputeTaskPool, Task},
@@ -29,8 +28,8 @@ use rustface::ImageData;
 use image::{ImageBuffer, Luma};
 // Data filter/smoothing
 mod filter;
-pub use filter::SmoothingFilterType;
 use filter::WebcamFacialDataFiltered;
+pub use filter::SmoothingFilterType;
 
 pub struct WebcamFacialPlugin {
     pub config_webcam_device: u32,
@@ -107,19 +106,19 @@ impl Default for WebcamFacialPlugin {
             config_webcam_device: 0,
             config_webcam_width: 640,
             config_webcam_height: 480,
-            config_webcam_framerate: 30,
+            config_webcam_framerate: 15,
             config_webcam_autostart: true,
             config_filter_type: SmoothingFilterType::LowPass(0.1),
-            config_filter_length: 15,
+            config_filter_length: 10,
         }
     }
 }
 
 fn webcam_facial_task_runner(
-    webcam_facial: Res<WebcamFacialController>,
+    mut webcam_facial: ResMut<WebcamFacialController>,
     mut commands: Commands,
-    mut task: Query<(Entity, &mut WebcamFacialTask)>,
-    mut events: EventWriter<WebcamFacialDataEvent>,
+    mut plugin_task: Query<(Entity, &mut WebcamFacialTask)>,
+    mut plugin_events: EventWriter<WebcamFacialDataEvent>,
 ) {
     // If enabled and not running - start task
     if webcam_facial.control & !webcam_facial.status.load(Ordering::SeqCst) {
@@ -134,9 +133,9 @@ fn webcam_facial_task_runner(
         let filter_type = webcam_facial.config_filter_type;
         let filter_length = webcam_facial.config_filter_length;
 
-        info!("Starting webcam capture. Launching capture and recognition task.");
+        info!("Starting plugin");
         let thread_pool = AsyncComputeTaskPool::get();
-        // Main task loop
+        // Main task and its loop
         let task = thread_pool.spawn(async move {
             // Initialize webcam
             let mut cam_iter = match get_camera_frame_iterator(
@@ -147,31 +146,29 @@ fn webcam_facial_task_runner(
             ) {
                 Some(iter) => iter,
                 None => {
-                    error!("Camera setup failed. Continuing without camera.");
                     return false;
                 }
             };
             // Initialize face detector
-            //TODO Model selection
+            //TODO Model selection, remove hardcoded
             let mut detector =
                 match rustface::create_detector(&"assets/NN_Models/seeta.bin".to_string()) {
-                    Ok(detector) => {
+                    Ok(mut detector) => {
                         info!("Using assets/NN_Models/seeta.bin recognition model.");
+                        detector.set_min_face_size(20);
+                        detector.set_score_thresh(2.0);
+                        detector.set_pyramid_scale_factor(0.8);
+                        detector.set_slide_window_step(4, 4);
                         detector
                     }
                     Err(error) => {
                         error!("Failed to create detector: {}", error.to_string());
-                        std::process::exit(1)
+                        return false;
                     }
                 };
 
-            detector.set_min_face_size(20);
-            detector.set_score_thresh(2.0);
-            detector.set_pyramid_scale_factor(0.8);
-            detector.set_slide_window_step(4, 4);
-
             let mut filtered_data = WebcamFacialDataFiltered::new(filter_length, filter_type);
-
+            info!("Capturing frames...");
             while task_running.load(Ordering::SeqCst) {
                 // Get frame from buffer
                 let rgb_frame = cam_iter.next().unwrap();
@@ -187,7 +184,7 @@ fn webcam_facial_task_runner(
                 let grayscale_image_data =
                     ImageData::new(&grayscale_image, camera_width, camera_height);
 
-                // Detect face data in privided image data
+                // Detect face data in provided image data
                 let faces = detector.detect(&grayscale_image_data);
 
                 // Initialize zero values if face not found
@@ -223,7 +220,7 @@ fn webcam_facial_task_runner(
                 }
                 filtered_data.push(facial_data);
 
-                // Send processed data
+                // Send processed and filtered data
                 match sender_clone.send(filtered_data.get()) {
                     Ok(()) => {
                         debug!("Data from task sent.")
@@ -233,7 +230,6 @@ fn webcam_facial_task_runner(
                     }
                 }
             }
-            info!("Camera stopped. Task off.");
             true
         });
         commands.spawn(WebcamFacialTask(task));
@@ -244,15 +240,22 @@ fn webcam_facial_task_runner(
     if !webcam_facial.control & webcam_facial.status.load(Ordering::SeqCst) {
         webcam_facial.status.store(false, Ordering::SeqCst);
     }
-    for (entity, mut task) in &mut task {
-        if let Some(_status) = future::block_on(future::poll_once(&mut task.0)) {
-            // Task is complete, so remove task component from entity
+    for (entity, mut task) in &mut plugin_task {
+        if let Some(status) = future::block_on(future::poll_once(&mut task.0)) {
+            // Task completed, so remove task component from entity
             commands.entity(entity).remove::<WebcamFacialTask>();
+            webcam_facial.status.store(false, Ordering::SeqCst);
+            webcam_facial.control = false;
+            if status {
+                info!("Camera stopped.");
+            } else {
+                info!("Plugin setup failed. Plugin self disabled.");
+            }
         }
     }
     while let Ok(data) = webcam_facial.receiver.try_recv() {
         debug!("Send Bevy event {:?}", data);
-        events.send(WebcamFacialDataEvent(data));
+        plugin_events.send(WebcamFacialDataEvent(data));
     }
 }
 
