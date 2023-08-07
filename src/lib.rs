@@ -1,4 +1,7 @@
-//use bevy::prelude::*;
+// Plugin that reads webcamera, detects face calculates frame box
+// and sends coordinates to Bevy as Event.
+// (Coordinates 0,0 are in the center of camera frame)
+
 use bevy::{
     app::{App, Plugin, Update},
     ecs::{
@@ -23,17 +26,14 @@ use camera_capture;
 // rustface detector
 use rustface::ImageData;
 // image utils
-use image::{ImageBuffer, Luma, Rgb};
-
+use image::{ImageBuffer, Luma};
+// Data filter/smoothing
 mod filter;
 pub use filter::SmoothingFilterType;
 use filter::WebcamFacialDataFiltered;
 
-// Plugin that reads webcamera, detects face calculates frame box
-// and sends coordinates to Bevy as Event.
-// (Coordinates 0,0 are in the center of camera frame)
+
 pub struct WebcamFacialPlugin {
-    pub config_webcam_device: String,
     pub config_webcam_width: u32,
     pub config_webcam_height: u32,
     pub config_webcam_framerate: u32,
@@ -48,7 +48,6 @@ pub struct WebcamFacialController {
     pub receiver: Receiver<WebcamFacialData>,
     pub control: bool,
     pub status: Arc<AtomicBool>,
-    config_device: String,
     config_width: u32,
     config_height: u32,
     config_framerate: u32,
@@ -79,24 +78,22 @@ pub struct WebcamFacialData {
 
 impl Plugin for WebcamFacialPlugin {
     fn build(&self, app: &mut App) {
-        // Add thread channels
+        // Add thread channels for data exchange
         let (task_channel_sender, task_channel_receiver) = bounded(1);
         let task_status = Arc::new(AtomicBool::new(false));
-        // Store plugins settings in resource
+        // Store plugin control,data channels and settings in a resource
         let plugin = WebcamFacialController {
             sender: task_channel_sender,
             receiver: task_channel_receiver,
             control: self.config_webcam_autostart.clone(),
             status: task_status,
 
-            config_device: self.config_webcam_device.clone(),
             config_width: self.config_webcam_width.clone(),
             config_height: self.config_webcam_height.clone(),
             config_framerate: self.config_webcam_framerate.clone(),
             config_filter_type: self.config_filter_type.clone(),
             config_filter_length: self.config_filter_length.clone(),
         };
-
         // Insert nesecary resources, events and systems
         app.insert_resource(plugin)
             .add_event::<WebcamFacialDataEvent>()
@@ -116,7 +113,6 @@ fn webcam_facial_task_runner(
         let task_running = webcam_facial.status.clone();
         let sender_clone = webcam_facial.sender.clone();
 
-        let device_path = webcam_facial.config_device.to_string();
         let camera_width = webcam_facial.config_width;
         let camera_height = webcam_facial.config_height;
         let camera_framerate = webcam_facial.config_framerate;
@@ -125,14 +121,24 @@ fn webcam_facial_task_runner(
 
         info!("Starting webcam capture. Launching capture and recognition task.");
         let thread_pool = AsyncComputeTaskPool::get();
+        // Main task loop 
         let task = thread_pool.spawn(async move {
             // Initialize webcam
-            let camera_device = camera_capture::create(0).unwrap();
-            let mut cam_iter = camera_device.fps(33.0).unwrap().start().unwrap();
+            let mut cam_iter = match get_camera_frame_iterator(camera_width, camera_height, camera_framerate) {
+                Some(iter) => iter,
+                None => {
+                    error!("Camera setup failed. Continuing without camera.");
+                    return false;
+                }
+            };
             // Initialize face detector
+            //TODO Model selection
             let mut detector =
                 match rustface::create_detector(&"assets/NN_Models/seeta.bin".to_string()) {
-                    Ok(detector) => detector,
+                    Ok(detector) => {
+                        info!("Using assets/NN_Models/seeta.bin recognition model.");
+                        detector
+                    },
                     Err(error) => {
                         error!("Failed to create detector: {}", error.to_string());
                         std::process::exit(1)
@@ -144,8 +150,7 @@ fn webcam_facial_task_runner(
             detector.set_pyramid_scale_factor(0.8);
             detector.set_slide_window_step(4, 4);
 
-            // TODO add config parse
-            let mut smoothed = WebcamFacialDataFiltered::new(filter_length, filter_type);
+            let mut filtered_data = WebcamFacialDataFiltered::new(filter_length, filter_type);
 
             while task_running.load(Ordering::SeqCst) {
                 // Get frame from buffer
@@ -158,6 +163,7 @@ fn webcam_facial_task_runner(
                 });
                 // Get Image data from buffer data
                 let grayscale_image_data = ImageData::new(&grayscale_image, camera_width, camera_height);
+
                 // Detect face data in privided image data
                 let faces = detector.detect(&grayscale_image_data);
 
@@ -193,11 +199,11 @@ fn webcam_facial_task_runner(
                         debug!("No faces found. Using default zero values.");
                     }
                 }
-                smoothed.push(facial_data);
+                filtered_data.push(facial_data);
 
 
                 // Send processed data
-                match sender_clone.send(smoothed.get()) {
+                match sender_clone.send(filtered_data.get()) {
                     Ok(()) => {
                         debug!("Data from task sent.")
                     }
@@ -229,29 +235,50 @@ fn webcam_facial_task_runner(
     }
 }
 
-// Converter from YUYV to RBG
-fn yuyv_to_rgb(yuyv_frame: &[u8], width: usize, height: usize) -> Vec<u8> {
-    let mut rgb_frame = vec![0u8; width * height * 3];
-    for i in (0..width * height).step_by(2) {
-        let y0 = yuyv_frame[i * 2] as f32;
-        let u = yuyv_frame[i * 2 + 1] as f32;
-        let y1 = yuyv_frame[i * 2 + 2] as f32;
-        let v = yuyv_frame[i * 2 + 3] as f32;
-        // Convert YUV to RGB
-        let r0 = (y0 + 1.4075 * (v - 128.0)) as u8;
-        let g0 = (y0 - 0.3455 * (u - 128.0) - (0.7169 * (v - 128.0))) as u8;
-        let b0 = (y0 + 1.7790 * (u - 128.0)) as u8;
-        let r1 = (y1 + 1.4075 * (v - 128.0)) as u8;
-        let g1 = (y1 - 0.3455 * (u - 128.0) - (0.7169 * (v - 128.0))) as u8;
-        let b1 = (y1 + 1.7790 * (u - 128.0)) as u8;
-        // Fill the RGB frame with the converted pixel values
-        let index = i * 3;
-        rgb_frame[index] = r0;
-        rgb_frame[index + 1] = g0;
-        rgb_frame[index + 2] = b0;
-        rgb_frame[index + 3] = r1;
-        rgb_frame[index + 4] = g1;
-        rgb_frame[index + 5] = b1;
+fn get_camera_frame_iterator(camera_width: u32, camera_height: u32, camera_framerate: u32) -> Option<camera_capture::ImageIterator> {
+    // Create the camera device
+    //TODO Add device selection instead first default?
+    let device_id  = 0;
+    let camera_device = match camera_capture::create(device_id) {
+        Ok(device) => {
+            #[cfg(unix)]
+            info!("Using '/dev/video{}' camera.", device_id);
+            #[cfg(windows)]
+            info!("Using camera ID:{}.", device_id);
+            device
+        },
+        Err(err) => {
+            error!("Error creating camera device: {:?}", err);
+            return None;
+        }
+    };
+    // Set the resolution
+    let resolution_device = match camera_device.resolution(camera_width, camera_height) {
+        Ok(resolution) => {
+            info!("Camera resolution set to {}x{}.", camera_width, camera_height);
+            resolution
+        },
+        Err(err) => {
+            error!("Error setting camera resolution: {:?}", err);
+            return None;
+        }
+    };
+    // Set the frame rate and start the camera capture
+    let cam_iter = match resolution_device.fps(camera_framerate as f64) {
+        Ok(fps) => {
+            info!("Camera fps set to {}.", camera_framerate);
+            fps.start()
+        },
+        Err(err) => {
+            error!("Error setting camera frame rate: {:?}", err);
+            return None;
+        }
+    };
+    match cam_iter {
+        Ok(iter) => Some(iter),
+        Err(err) => {
+            error!("Error starting camera: {:?}", err);
+            None
+        }
     }
-    rgb_frame
 }

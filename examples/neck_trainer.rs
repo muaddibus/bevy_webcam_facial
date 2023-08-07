@@ -13,7 +13,6 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugins(WebcamFacialPlugin {
-            config_webcam_device: "/dev/video0".to_string(),
             config_webcam_width: 640,
             config_webcam_height: 480,
             config_webcam_framerate: 33,

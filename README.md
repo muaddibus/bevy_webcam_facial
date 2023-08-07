@@ -13,14 +13,14 @@ Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, f
 * 2 data smoothing/denoising filters
 
 ## Plans
-- [ ] Windows / MacOSX webcam support
+- [ ] MacOSX webcam support
 - [ ] Several AI face recognition models to choose by default (simple frame, with face features like eyes/nose/mouth, full face mesh recognition, emotion detection...)
 
 ## Supported Platforms
 
 - [x] Linux via v4l2 [rscam]
 - [ ] MacOSX
-- [ ] Windows
+- [x] Windows
 
 ## Available for use in Bevy:
 
