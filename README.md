@@ -6,7 +6,7 @@ Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, f
 
 ## Features
 
-* Webcam capture using [rscam](https://github.com/loyd/rscam/) via Linux V4L backend
+* Webcam capture using [camera_capture](https://github.com/oli-obk/camera_capture)
 * Face position recognition using [rustface](https://github.com/atomashpolskiy/rustface)
 * Realtime and lightweight [SeetaFace Detection model](https://github.com/seetaface/SeetaFaceEngine/tree/master/FaceDetection/)
 * Runs in separate Bevy AsyncTaskpool task without blocking
@@ -26,23 +26,23 @@ Plugin for [Bevy](https://bevyengine.org/) game engine. Captures webcam image, f
 
 ### Plugin config
 
-Needs several parameters when including in `.add_plugins`:
+Several parameters when including in `.add_plugins` or use default camera and settings `.add_plugins(WebcamFacialPlugin::default())`:
 ```rust
 .add_plugins(WebcamFacialPlugin {
-    config_webcam_device: "/dev/video0".to_string(),
+    config_webcam_device: 0,
     config_webcam_width: 640,
     config_webcam_height: 480,
-    config_webcam_framerate: 33,
+    config_webcam_framerate: 30,
     config_webcam_autostart: true,
     config_filter_type: SmoothingFilterType::LowPass(0.1),
-    config_filter_length: 10,
+    config_filter_length: 15,
 })
 ```
 Parameters: 
-* Path to webcamera device ex."/dev/video0"
+* Path to webcamera device ex.0,1,2...
 * Width of frame: 640
 * Width of frame: 480
-* Frames per second: 33
+* Frames per second: 30
 * Start capturing and sending events instantly after plugin activation: true/false (can be enabled/disabled anytime at runtime via `ResMut<WebcamFacialController>`)
 * Smoothing filter for coordinates (currently: MeanMedian, LowPass(f32), NoFilter)
 * From how much frames take data for smoothing 5-10 optimal (more frames - more smooth movement but slow response)

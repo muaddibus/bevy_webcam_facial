@@ -34,6 +34,7 @@ use filter::WebcamFacialDataFiltered;
 
 
 pub struct WebcamFacialPlugin {
+    pub config_webcam_device: u32,
     pub config_webcam_width: u32,
     pub config_webcam_height: u32,
     pub config_webcam_framerate: u32,
@@ -48,6 +49,7 @@ pub struct WebcamFacialController {
     pub receiver: Receiver<WebcamFacialData>,
     pub control: bool,
     pub status: Arc<AtomicBool>,
+    config_device: u32,
     config_width: u32,
     config_height: u32,
     config_framerate: u32,
@@ -74,8 +76,6 @@ pub struct WebcamFacialData {
     pub score: f32,
 }
 
-
-
 impl Plugin for WebcamFacialPlugin {
     fn build(&self, app: &mut App) {
         // Add thread channels for data exchange
@@ -88,6 +88,7 @@ impl Plugin for WebcamFacialPlugin {
             control: self.config_webcam_autostart.clone(),
             status: task_status,
 
+            config_device: self.config_webcam_device.clone(),
             config_width: self.config_webcam_width.clone(),
             config_height: self.config_webcam_height.clone(),
             config_framerate: self.config_webcam_framerate.clone(),
@@ -98,6 +99,20 @@ impl Plugin for WebcamFacialPlugin {
         app.insert_resource(plugin)
             .add_event::<WebcamFacialDataEvent>()
             .add_systems(Update, webcam_facial_task_runner);
+    }
+}
+
+impl Default for WebcamFacialPlugin {
+    fn default() -> Self {
+        Self {
+            config_webcam_device: 0,
+            config_webcam_width: 640,
+            config_webcam_height: 480,
+            config_webcam_framerate: 30,
+            config_webcam_autostart: true,
+            config_filter_type: SmoothingFilterType::LowPass(0.1),
+            config_filter_length: 15,
+        }
     }
 }
 
@@ -113,6 +128,7 @@ fn webcam_facial_task_runner(
         let task_running = webcam_facial.status.clone();
         let sender_clone = webcam_facial.sender.clone();
 
+        let camera_device = webcam_facial.config_device;
         let camera_width = webcam_facial.config_width;
         let camera_height = webcam_facial.config_height;
         let camera_framerate = webcam_facial.config_framerate;
@@ -124,7 +140,7 @@ fn webcam_facial_task_runner(
         // Main task loop 
         let task = thread_pool.spawn(async move {
             // Initialize webcam
-            let mut cam_iter = match get_camera_frame_iterator(camera_width, camera_height, camera_framerate) {
+            let mut cam_iter = match get_camera_frame_iterator(camera_device, camera_width, camera_height, camera_framerate) {
                 Some(iter) => iter,
                 None => {
                     error!("Camera setup failed. Continuing without camera.");
@@ -235,20 +251,18 @@ fn webcam_facial_task_runner(
     }
 }
 
-fn get_camera_frame_iterator(camera_width: u32, camera_height: u32, camera_framerate: u32) -> Option<camera_capture::ImageIterator> {
+fn get_camera_frame_iterator(camera_device: u32, camera_width: u32, camera_height: u32, camera_framerate: u32) -> Option<camera_capture::ImageIterator> {
     // Create the camera device
-    //TODO Add device selection instead first default?
-    let device_id  = 0;
-    let camera_device = match camera_capture::create(device_id) {
+    let camera_device = match camera_capture::create(camera_device) {
         Ok(device) => {
             #[cfg(unix)]
-            info!("Using '/dev/video{}' camera.", device_id);
+            info!("Using '/dev/video{}' camera.", camera_device);
             #[cfg(windows)]
-            info!("Using camera ID:{}.", device_id);
+            info!("Using camera ID:{}.", camera_device);
             device
         },
         Err(err) => {
-            error!("Error creating camera device: {:?}", err);
+            error!("Error creating camera device [{}]: {:?}", camera_device, err);
             return None;
         }
     };
