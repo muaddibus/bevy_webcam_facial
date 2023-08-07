@@ -18,13 +18,12 @@ use std::sync::{
     Arc,
 };
 
-// rscam, v4l wrapper
-use rscam::Camera;
-use rscam::Config;
+// camera capture
+use camera_capture;
 // rustface detector
 use rustface::ImageData;
 // image utils
-use image::{DynamicImage, ImageBuffer};
+use image::{ImageBuffer, Luma, Rgb};
 
 mod filter;
 pub use filter::SmoothingFilterType;
@@ -128,15 +127,8 @@ fn webcam_facial_task_runner(
         let thread_pool = AsyncComputeTaskPool::get();
         let task = thread_pool.spawn(async move {
             // Initialize webcam
-            let mut camera = Camera::new(&device_path).unwrap();
-            camera
-                .start(&Config {
-                    interval: (1, camera_framerate),
-                    resolution: (camera_width, camera_height),
-                    format: b"YUYV",
-                    ..Default::default()
-                })
-                .unwrap_or_else(|_error| error!("Failed to start camera device!"));
+            let camera_device = camera_capture::create(0).unwrap();
+            let mut cam_iter = camera_device.fps(33.0).unwrap().start().unwrap();
             // Initialize face detector
             let mut detector =
                 match rustface::create_detector(&"assets/NN_Models/seeta.bin".to_string()) {
@@ -157,20 +149,17 @@ fn webcam_facial_task_runner(
 
             while task_running.load(Ordering::SeqCst) {
                 // Get frame from buffer
-                let buf = camera.capture().expect("Failed to get frame!");
-                let rgb_frame = yuyv_to_rgb(&buf, camera_width as usize, camera_height as usize);
-                // Create a new ImageBuffer from converting Vec<u8>
-                let image_buffer: ImageBuffer<image::Rgb<u8>, Vec<u8>> =
-                    ImageBuffer::from_vec(camera_width, camera_height, rgb_frame)
-                        .expect("Failed to create ImageBuffer");
-                // Convert ImageBuffer to DynamicImage
-                let image: DynamicImage = DynamicImage::ImageRgb8(image_buffer);
-                // Convert to grayscale image buffer
-                let gray = image.to_luma8();
+                let rgb_frame = cam_iter.next().unwrap();
+                // Convert RGB frame to grayscale
+                let grayscale_image = ImageBuffer::from_fn(camera_width, camera_height, |x, y| {
+                    let rgb_pixel = *rgb_frame.get_pixel(x, y);
+                    let gray_value = rgb_pixel[0] as u32 * 77 + rgb_pixel[1] as u32 * 150 + rgb_pixel[2] as u32 * 29;
+                    Luma([((gray_value >> 8) & 0xFF) as u8])
+                });
                 // Get Image data from buffer data
-                let mut grayscale_image_data = ImageData::new(&gray, camera_width, camera_height);
-                // Detect face data
-                let faces = detector.detect(&mut grayscale_image_data);
+                let grayscale_image_data = ImageData::new(&grayscale_image, camera_width, camera_height);
+                // Detect face data in privided image data
+                let faces = detector.detect(&grayscale_image_data);
 
                 // Initialize zero values if face not found
                 let mut facial_data = WebcamFacialData::default();

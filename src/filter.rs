@@ -31,18 +31,19 @@ impl WebcamFacialDataFiltered {
         match self.2 {
             SmoothingFilterType::MeanMedian => return self.mean_median_filter(),
             SmoothingFilterType::LowPass(alpha) => return self.low_pass_filter(alpha),
-            SmoothingFilterType::NoFilter => return WebcamFacialData {
-                center_x: self.0[self.0.len()-1].center_x,
-                center_y: self.0[self.0.len()-1].center_y,
-                x: self.0[self.0.len()-1].x,
-                y: self.0[self.0.len()-1].y,
-                width: self.0[self.0.len()-1].width,
-                height: self.0[self.0.len()-1].height,
-                score: self.0[self.0.len()-1].score,
-            },
+            SmoothingFilterType::NoFilter => {
+                return WebcamFacialData {
+                    center_x: self.0[self.0.len() - 1].center_x,
+                    center_y: self.0[self.0.len() - 1].center_y,
+                    x: self.0[self.0.len() - 1].x,
+                    y: self.0[self.0.len() - 1].y,
+                    width: self.0[self.0.len() - 1].width,
+                    height: self.0[self.0.len() - 1].height,
+                    score: self.0[self.0.len() - 1].score,
+                }
+            }
         }
     }
-
 
     #[allow(unused)]
     fn low_pass_filter(&self, alpha: f32) -> WebcamFacialData {
@@ -92,5 +93,4 @@ impl WebcamFacialDataFiltered {
             score: score_sum / num_elements as f32,
         }
     }
-
 }

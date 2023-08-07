@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::pbr::DirectionalLightShadowMap;
+use bevy::prelude::*;
 
 use bevy_webcam_facial::*;
 
@@ -79,7 +79,7 @@ fn move_object(
         let x = event.0.center_x;
         let y = event.0.center_y;
         // Print coords and do basic transforms
-        info!("{:?} {:?}",x,y);
+        info!("{:?} {:?}", x, y);
         for mut transform in query.iter_mut() {
             // Move object with x10 less influence, also add 2 to z transform
             transform.translation.x = x as f32 / 10.0;
