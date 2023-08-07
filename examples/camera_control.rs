@@ -1,6 +1,6 @@
-use bevy::prelude::*;
 use bevy::app::AppExit;
 use bevy::pbr::DirectionalLightShadowMap;
+use bevy::prelude::*;
 use bevy_scene_hook::{HookPlugin, HookedSceneBundle, SceneHook};
 
 use bevy_webcam_facial::*;
@@ -16,7 +16,7 @@ fn main() {
         .insert_resource(DirectionalLightShadowMap { size: 2048 })
         .add_plugins(DefaultPlugins)
         .add_plugins(WebcamFacialPlugin {
-            config_webcam_device: "/dev/video0".to_string(),
+            config_webcam_device: 0,
             config_webcam_width: 640,
             config_webcam_height: 480,
             config_webcam_framerate: 33,
@@ -39,10 +39,7 @@ fn main() {
 }
 
 /// set up 3D scene
-fn load_scene(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>
-) {
+fn load_scene(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(HookedSceneBundle {
         scene: SceneBundle {
             scene: asset_server.load("rooster.gltf#Scene0"),
@@ -95,8 +92,26 @@ fn set_camera_position_from_plugin(
 
         for mut transform in camera.iter_mut() {
             // For camera moving while looking at target:
-            transform.translation = Transform::from_xyz( x, y, 10.0).looking_at(Vec3 { x: 0.0, y: 1.0, z: 0.0 }, Vec3::Y).translation;
-            transform.rotation =    Transform::from_xyz( x, y, 10.0).looking_at(Vec3 { x: 0.0, y: 1.0, z: 0.0 }, Vec3::Y).rotation;
+            transform.translation = Transform::from_xyz(x, y, 10.0)
+                .looking_at(
+                    Vec3 {
+                        x: 0.0,
+                        y: 1.0,
+                        z: 0.0,
+                    },
+                    Vec3::Y,
+                )
+                .translation;
+            transform.rotation = Transform::from_xyz(x, y, 10.0)
+                .looking_at(
+                    Vec3 {
+                        x: 0.0,
+                        y: 1.0,
+                        z: 0.0,
+                    },
+                    Vec3::Y,
+                )
+                .rotation;
 
             /* OR */
 

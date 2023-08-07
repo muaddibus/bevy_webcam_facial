@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::pbr::DirectionalLightShadowMap;
+use bevy::prelude::*;
 
 use bevy_webcam_facial::*;
 
@@ -11,17 +11,7 @@ fn main() {
         .insert_resource(DirectionalLightShadowMap { size: 2048 })
         .add_plugins(DefaultPlugins)
         // Add plugin with a *MUST* camera parameters
-        .add_plugins(WebcamFacialPlugin {
-            config_webcam_device: "/dev/video0".to_string(),
-            config_webcam_width: 640,
-            config_webcam_height: 480,
-            config_webcam_framerate: 33,
-            config_webcam_autostart: true,
-            // Setting Mean median filter to filter coordinate noise
-            config_filter_type: SmoothingFilterType::MeanMedian,
-            // Taking last 10 frames data for filter
-            config_filter_length: 10,
-        })
+        .add_plugins(WebcamFacialPlugin::default())
         .add_systems(Startup, setup)
         // Add system to read data events and do something with data
         .add_systems(Update, move_object)
@@ -79,7 +69,7 @@ fn move_object(
         let x = event.0.center_x;
         let y = event.0.center_y;
         // Print coords and do basic transforms
-        info!("{:?} {:?}",x,y);
+        info!("{:?} {:?}", x, y);
         for mut transform in query.iter_mut() {
             // Move object with x10 less influence, also add 2 to z transform
             transform.translation.x = x as f32 / 10.0;

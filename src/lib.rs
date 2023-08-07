@@ -1,11 +1,13 @@
-//use bevy::prelude::*;
+// Plugin that reads webcamera, detects face calculates frame box
+// and sends coordinates to Bevy as Event.
+
 use bevy::{
     app::{App, Plugin, Update},
     ecs::{
         component::Component,
         entity::Entity,
         event::{Event, EventWriter},
-        system::{Commands, Query, Res, Resource},
+        system::{Commands, Query, ResMut, Resource},
     },
     log::{debug, error, info},
     tasks::{AsyncComputeTaskPool, Task},
@@ -18,23 +20,19 @@ use std::sync::{
     Arc,
 };
 
-// rscam, v4l wrapper
-use rscam::Camera;
-use rscam::Config;
+// camera capture
+use camera_capture;
 // rustface detector
 use rustface::ImageData;
 // image utils
-use image::{DynamicImage, ImageBuffer};
-
+use image::{ImageBuffer, Luma};
+// Data filter/smoothing
 mod filter;
-pub use filter::SmoothingFilterType;
 use filter::WebcamFacialDataFiltered;
+pub use filter::SmoothingFilterType;
 
-// Plugin that reads webcamera, detects face calculates frame box
-// and sends coordinates to Bevy as Event.
-// (Coordinates 0,0 are in the center of camera frame)
 pub struct WebcamFacialPlugin {
-    pub config_webcam_device: String,
+    pub config_webcam_device: u32,
     pub config_webcam_width: u32,
     pub config_webcam_height: u32,
     pub config_webcam_framerate: u32,
@@ -49,7 +47,7 @@ pub struct WebcamFacialController {
     pub receiver: Receiver<WebcamFacialData>,
     pub control: bool,
     pub status: Arc<AtomicBool>,
-    config_device: String,
+    config_device: u32,
     config_width: u32,
     config_height: u32,
     config_framerate: u32,
@@ -76,14 +74,12 @@ pub struct WebcamFacialData {
     pub score: f32,
 }
 
-
-
 impl Plugin for WebcamFacialPlugin {
     fn build(&self, app: &mut App) {
-        // Add thread channels
+        // Add thread channels for data exchange
         let (task_channel_sender, task_channel_receiver) = bounded(1);
         let task_status = Arc::new(AtomicBool::new(false));
-        // Store plugins settings in resource
+        // Store plugin control,data channels and settings in a resource
         let plugin = WebcamFacialController {
             sender: task_channel_sender,
             receiver: task_channel_receiver,
@@ -97,7 +93,6 @@ impl Plugin for WebcamFacialPlugin {
             config_filter_type: self.config_filter_type.clone(),
             config_filter_length: self.config_filter_length.clone(),
         };
-
         // Insert nesecary resources, events and systems
         app.insert_resource(plugin)
             .add_event::<WebcamFacialDataEvent>()
@@ -105,11 +100,25 @@ impl Plugin for WebcamFacialPlugin {
     }
 }
 
+impl Default for WebcamFacialPlugin {
+    fn default() -> Self {
+        Self {
+            config_webcam_device: 0,
+            config_webcam_width: 640,
+            config_webcam_height: 480,
+            config_webcam_framerate: 15,
+            config_webcam_autostart: true,
+            config_filter_type: SmoothingFilterType::LowPass(0.1),
+            config_filter_length: 10,
+        }
+    }
+}
+
 fn webcam_facial_task_runner(
-    webcam_facial: Res<WebcamFacialController>,
+    mut webcam_facial: ResMut<WebcamFacialController>,
     mut commands: Commands,
-    mut task: Query<(Entity, &mut WebcamFacialTask)>,
-    mut events: EventWriter<WebcamFacialDataEvent>,
+    mut plugin_task: Query<(Entity, &mut WebcamFacialTask)>,
+    mut plugin_events: EventWriter<WebcamFacialDataEvent>,
 ) {
     // If enabled and not running - start task
     if webcam_facial.control & !webcam_facial.status.load(Ordering::SeqCst) {
@@ -117,60 +126,66 @@ fn webcam_facial_task_runner(
         let task_running = webcam_facial.status.clone();
         let sender_clone = webcam_facial.sender.clone();
 
-        let device_path = webcam_facial.config_device.to_string();
+        let camera_device = webcam_facial.config_device;
         let camera_width = webcam_facial.config_width;
         let camera_height = webcam_facial.config_height;
         let camera_framerate = webcam_facial.config_framerate;
         let filter_type = webcam_facial.config_filter_type;
         let filter_length = webcam_facial.config_filter_length;
 
-        info!("Starting webcam capture. Launching capture and recognition task.");
+        info!("Starting plugin");
         let thread_pool = AsyncComputeTaskPool::get();
+        // Main task and its loop
         let task = thread_pool.spawn(async move {
             // Initialize webcam
-            let mut camera = Camera::new(&device_path).unwrap();
-            camera
-                .start(&Config {
-                    interval: (1, camera_framerate),
-                    resolution: (camera_width, camera_height),
-                    format: b"YUYV",
-                    ..Default::default()
-                })
-                .unwrap_or_else(|_error| error!("Failed to start camera device!"));
+            let mut cam_iter = match get_camera_frame_iterator(
+                camera_device,
+                camera_width,
+                camera_height,
+                camera_framerate,
+            ) {
+                Some(iter) => iter,
+                None => {
+                    return false;
+                }
+            };
             // Initialize face detector
+            //TODO Model selection, remove hardcoded
             let mut detector =
                 match rustface::create_detector(&"assets/NN_Models/seeta.bin".to_string()) {
-                    Ok(detector) => detector,
+                    Ok(mut detector) => {
+                        info!("Using assets/NN_Models/seeta.bin recognition model.");
+                        detector.set_min_face_size(20);
+                        detector.set_score_thresh(2.0);
+                        detector.set_pyramid_scale_factor(0.8);
+                        detector.set_slide_window_step(4, 4);
+                        detector
+                    }
                     Err(error) => {
                         error!("Failed to create detector: {}", error.to_string());
-                        std::process::exit(1)
+                        return false;
                     }
                 };
 
-            detector.set_min_face_size(20);
-            detector.set_score_thresh(2.0);
-            detector.set_pyramid_scale_factor(0.8);
-            detector.set_slide_window_step(4, 4);
-
-            // TODO add config parse
-            let mut smoothed = WebcamFacialDataFiltered::new(filter_length, filter_type);
-
+            let mut filtered_data = WebcamFacialDataFiltered::new(filter_length, filter_type);
+            info!("Capturing frames...");
             while task_running.load(Ordering::SeqCst) {
                 // Get frame from buffer
-                let buf = camera.capture().expect("Failed to get frame!");
-                let rgb_frame = yuyv_to_rgb(&buf, camera_width as usize, camera_height as usize);
-                // Create a new ImageBuffer from converting Vec<u8>
-                let image_buffer: ImageBuffer<image::Rgb<u8>, Vec<u8>> =
-                    ImageBuffer::from_vec(camera_width, camera_height, rgb_frame)
-                        .expect("Failed to create ImageBuffer");
-                // Convert ImageBuffer to DynamicImage
-                let image: DynamicImage = DynamicImage::ImageRgb8(image_buffer);
-                // Convert to grayscale image buffer
-                let gray = image.to_luma8();
+                let rgb_frame = cam_iter.next().unwrap();
+                // Convert RGB frame to grayscale
+                let grayscale_image = ImageBuffer::from_fn(camera_width, camera_height, |x, y| {
+                    let rgb_pixel = *rgb_frame.get_pixel(x, y);
+                    let gray_value = rgb_pixel[0] as u32 * 77
+                        + rgb_pixel[1] as u32 * 150
+                        + rgb_pixel[2] as u32 * 29;
+                    Luma([((gray_value >> 8) & 0xFF) as u8])
+                });
                 // Get Image data from buffer data
-                let mut grayscale_image_data = ImageData::new(&gray, camera_width, camera_height);
-                // Detect face data
-                let faces = detector.detect(&mut grayscale_image_data);
+                let grayscale_image_data =
+                    ImageData::new(&grayscale_image, camera_width, camera_height);
+
+                // Detect face data in provided image data
+                let faces = detector.detect(&grayscale_image_data);
 
                 // Initialize zero values if face not found
                 let mut facial_data = WebcamFacialData::default();
@@ -198,17 +213,15 @@ fn webcam_facial_task_runner(
                         facial_data.height = facial_data.height as f32 * h_scale_factor;
                         facial_data.center_x = (2.0 * facial_data.x + facial_data.width) / -2.0; // minus flips values so negative is left
                         facial_data.center_y = (2.0 * facial_data.y + facial_data.height) / 2.0;
-
                     }
                     None => {
                         debug!("No faces found. Using default zero values.");
                     }
                 }
-                smoothed.push(facial_data);
+                filtered_data.push(facial_data);
 
-
-                // Send processed data
-                match sender_clone.send(smoothed.get()) {
+                // Send processed and filtered data
+                match sender_clone.send(filtered_data.get()) {
                     Ok(()) => {
                         debug!("Data from task sent.")
                     }
@@ -217,7 +230,6 @@ fn webcam_facial_task_runner(
                     }
                 }
             }
-            info!("Camera stopped. Task off.");
             true
         });
         commands.spawn(WebcamFacialTask(task));
@@ -228,41 +240,78 @@ fn webcam_facial_task_runner(
     if !webcam_facial.control & webcam_facial.status.load(Ordering::SeqCst) {
         webcam_facial.status.store(false, Ordering::SeqCst);
     }
-    for (entity, mut task) in &mut task {
-        if let Some(_status) = future::block_on(future::poll_once(&mut task.0)) {
-            // Task is complete, so remove task component from entity
+    for (entity, mut task) in &mut plugin_task {
+        if let Some(status) = future::block_on(future::poll_once(&mut task.0)) {
+            // Task completed, so remove task component from entity
             commands.entity(entity).remove::<WebcamFacialTask>();
+            webcam_facial.status.store(false, Ordering::SeqCst);
+            webcam_facial.control = false;
+            if status {
+                info!("Camera stopped.");
+            } else {
+                info!("Plugin setup failed. Plugin self disabled.");
+            }
         }
     }
     while let Ok(data) = webcam_facial.receiver.try_recv() {
         debug!("Send Bevy event {:?}", data);
-        events.send(WebcamFacialDataEvent(data));
+        plugin_events.send(WebcamFacialDataEvent(data));
     }
 }
 
-// Converter from YUYV to RBG
-fn yuyv_to_rgb(yuyv_frame: &[u8], width: usize, height: usize) -> Vec<u8> {
-    let mut rgb_frame = vec![0u8; width * height * 3];
-    for i in (0..width * height).step_by(2) {
-        let y0 = yuyv_frame[i * 2] as f32;
-        let u = yuyv_frame[i * 2 + 1] as f32;
-        let y1 = yuyv_frame[i * 2 + 2] as f32;
-        let v = yuyv_frame[i * 2 + 3] as f32;
-        // Convert YUV to RGB
-        let r0 = (y0 + 1.4075 * (v - 128.0)) as u8;
-        let g0 = (y0 - 0.3455 * (u - 128.0) - (0.7169 * (v - 128.0))) as u8;
-        let b0 = (y0 + 1.7790 * (u - 128.0)) as u8;
-        let r1 = (y1 + 1.4075 * (v - 128.0)) as u8;
-        let g1 = (y1 - 0.3455 * (u - 128.0) - (0.7169 * (v - 128.0))) as u8;
-        let b1 = (y1 + 1.7790 * (u - 128.0)) as u8;
-        // Fill the RGB frame with the converted pixel values
-        let index = i * 3;
-        rgb_frame[index] = r0;
-        rgb_frame[index + 1] = g0;
-        rgb_frame[index + 2] = b0;
-        rgb_frame[index + 3] = r1;
-        rgb_frame[index + 4] = g1;
-        rgb_frame[index + 5] = b1;
+fn get_camera_frame_iterator(
+    camera_device: u32,
+    camera_width: u32,
+    camera_height: u32,
+    camera_framerate: u32,
+) -> Option<camera_capture::ImageIterator> {
+    // Create the camera device
+    let camera_device = match camera_capture::create(camera_device) {
+        Ok(device) => {
+            #[cfg(unix)]
+            info!("Using '/dev/video{}' camera.", camera_device);
+            #[cfg(windows)]
+            info!("Using camera ID:{}.", camera_device);
+            device
+        }
+        Err(err) => {
+            error!(
+                "Error creating camera device [{}]: {:?}",
+                camera_device, err
+            );
+            return None;
+        }
+    };
+    // Set the resolution
+    let resolution_device = match camera_device.resolution(camera_width, camera_height) {
+        Ok(resolution) => {
+            info!(
+                "Camera resolution set to {}x{}.",
+                camera_width, camera_height
+            );
+            resolution
+        }
+        Err(err) => {
+            error!("Error setting camera resolution: {:?}", err);
+            return None;
+        }
+    };
+    // Set the frame rate and start the camera capture
+    let cam_iter = match resolution_device.fps(camera_framerate as f64) {
+        Ok(fps) => {
+            info!("Camera fps set to {}.", camera_framerate);
+            fps.start()
+        }
+        Err(err) => {
+            error!("Error setting camera frame rate: {:?}", err);
+            return None;
+        }
+    };
+    match cam_iter {
+        Ok(iter) => Some(iter),
+        Err(err) => {
+            error!("Error starting camera: {:?}", err);
+            None
+        }
     }
-    rgb_frame
 }

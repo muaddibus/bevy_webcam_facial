@@ -1,6 +1,6 @@
 [package]
 name = "bevy_webcam_facial"
-version = "0.1.3"
+version = "0.1.4"
 description = "Webcam AI face recognition plugin for bevy game engine"
 authors = ["Andrius Kokianciks <andrius.kokianciks@gmail.com>"]
 license = "MIT/Apache-2.0"
@@ -14,8 +14,8 @@ edition = "2021"
 bevy = { version = "^0.11", default-features = false }
 futures-lite = "1.13.0"
 crossbeam-channel ="0.5.8"
-rscam = "0.5.5"
 rustface = "0.1.7"
+camera_capture = "0.5.0"
 image = "0.24.6"
 
 [dev_dependencies]
