@@ -1,5 +1,4 @@
-use bevy::pbr::DirectionalLightShadowMap;
-use bevy::prelude::*;
+use bevy::{pbr::DirectionalLightShadowMap, prelude::*};
 
 use bevy_webcam_facial::*;
 
@@ -64,16 +63,16 @@ fn move_object(
     // Read data event with camera data
     mut reader: EventReader<WebcamFacialDataEvent>,
 ) {
-    for event in reader.iter() {
+    for event in reader.read() {
         // Get data from event.
         let x = event.0.center_x;
         let y = event.0.center_y;
         // Print coords and do basic transforms
         info!("{:?} {:?}", x, y);
-        for mut transform in query.iter_mut() {
+        for mut transform in &mut query {
             // Move object with x10 less influence, also add 2 to z transform
-            transform.translation.x = x as f32 / 10.0;
-            transform.translation.z = y as f32 / 10.0 + 2.0;
+            transform.translation.x = x / 10.0;
+            transform.translation.z = y / 10.0 + 2.0;
         }
     }
 }

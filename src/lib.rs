@@ -20,16 +20,14 @@ use std::sync::{
     Arc,
 };
 
-// camera capture
-use camera_capture;
 // rustface detector
 use rustface::ImageData;
 // image utils
 use image::{ImageBuffer, Luma};
 // Data filter/smoothing
 mod filter;
-use filter::WebcamFacialDataFiltered;
 pub use filter::SmoothingFilterType;
+use filter::WebcamFacialDataFiltered;
 
 pub struct WebcamFacialPlugin {
     pub config_webcam_device: u32,
@@ -83,15 +81,15 @@ impl Plugin for WebcamFacialPlugin {
         let plugin = WebcamFacialController {
             sender: task_channel_sender,
             receiver: task_channel_receiver,
-            control: self.config_webcam_autostart.clone(),
+            control: self.config_webcam_autostart,
             status: task_status,
 
-            config_device: self.config_webcam_device.clone(),
-            config_width: self.config_webcam_width.clone(),
-            config_height: self.config_webcam_height.clone(),
-            config_framerate: self.config_webcam_framerate.clone(),
-            config_filter_type: self.config_filter_type.clone(),
-            config_filter_length: self.config_filter_length.clone(),
+            config_device: self.config_webcam_device,
+            config_width: self.config_webcam_width,
+            config_height: self.config_webcam_height,
+            config_framerate: self.config_webcam_framerate,
+            config_filter_type: self.config_filter_type,
+            config_filter_length: self.config_filter_length,
         };
         // Insert nesecary resources, events and systems
         app.insert_resource(plugin)
@@ -138,34 +136,30 @@ fn webcam_facial_task_runner(
         // Main task and its loop
         let task = thread_pool.spawn(async move {
             // Initialize webcam
-            let mut cam_iter = match get_camera_frame_iterator(
+            let Some(mut cam_iter) = get_camera_frame_iterator(
                 camera_device,
                 camera_width,
                 camera_height,
                 camera_framerate,
-            ) {
-                Some(iter) => iter,
-                None => {
-                    return false;
-                }
+            ) else {
+                return false;
             };
             // Initialize face detector
             //TODO Model selection, remove hardcoded
-            let mut detector =
-                match rustface::create_detector(&"assets/NN_Models/seeta.bin".to_string()) {
-                    Ok(mut detector) => {
-                        info!("Using assets/NN_Models/seeta.bin recognition model.");
-                        detector.set_min_face_size(20);
-                        detector.set_score_thresh(2.0);
-                        detector.set_pyramid_scale_factor(0.8);
-                        detector.set_slide_window_step(4, 4);
-                        detector
-                    }
-                    Err(error) => {
-                        error!("Failed to create detector: {}", error.to_string());
-                        return false;
-                    }
-                };
+            let mut detector = match rustface::create_detector("assets/NN_Models/seeta.bin") {
+                Ok(mut detector) => {
+                    info!("Using assets/NN_Models/seeta.bin recognition model.");
+                    detector.set_min_face_size(20);
+                    detector.set_score_thresh(2.0);
+                    detector.set_pyramid_scale_factor(0.8);
+                    detector.set_slide_window_step(4, 4);
+                    detector
+                }
+                Err(error) => {
+                    error!("Failed to create detector: {}", error.to_string());
+                    return false;
+                }
+            };
 
             let mut filtered_data = WebcamFacialDataFiltered::new(filter_length, filter_type);
             info!("Capturing frames...");
@@ -175,9 +169,9 @@ fn webcam_facial_task_runner(
                 // Convert RGB frame to grayscale
                 let grayscale_image = ImageBuffer::from_fn(camera_width, camera_height, |x, y| {
                     let rgb_pixel = *rgb_frame.get_pixel(x, y);
-                    let gray_value = rgb_pixel[0] as u32 * 77
-                        + rgb_pixel[1] as u32 * 150
-                        + rgb_pixel[2] as u32 * 29;
+                    let gray_value = u32::from(rgb_pixel[0]) * 77
+                        + u32::from(rgb_pixel[1]) * 150
+                        + u32::from(rgb_pixel[2]) * 29;
                     Luma([((gray_value >> 8) & 0xFF) as u8])
                 });
                 // Get Image data from buffer data
@@ -191,9 +185,10 @@ fn webcam_facial_task_runner(
                 let mut facial_data = WebcamFacialData::default();
 
                 // Get face with maximum human face probability (best candidate)
-                let max_face = faces.iter().max_by_key(|p| p.score() as i32);
-                match max_face {
-                    Some(max_face) => {
+
+                faces.iter().max_by_key(|p| p.score() as i32).map_or_else(
+                    || debug!("No faces found. Using default zero values."),
+                    |max_face| {
                         debug!("Max score face: {:?}", max_face);
                         // Take face rectangle coords and score
                         facial_data.x = faces[0].bbox().x() as f32;
@@ -207,27 +202,23 @@ fn webcam_facial_task_runner(
                         let h_scale_factor = 100.0 / camera_width as f32;
 
                         // Calculate the coordinates and dimensions in the desired range (-50.0) to (50.0)
-                        facial_data.x = facial_data.x * w_scale_factor - 50.0;
-                        facial_data.y = facial_data.y * h_scale_factor - 50.0;
-                        facial_data.width = facial_data.width * w_scale_factor;
-                        facial_data.height = facial_data.height as f32 * h_scale_factor;
-                        facial_data.center_x = (2.0 * facial_data.x + facial_data.width) / -2.0; // minus flips values so negative is left
-                        facial_data.center_y = (2.0 * facial_data.y + facial_data.height) / 2.0;
-                    }
-                    None => {
-                        debug!("No faces found. Using default zero values.");
-                    }
-                }
+                        facial_data.x = facial_data.x.mul_add(w_scale_factor, -50.0);
+                        facial_data.y = facial_data.y.mul_add(h_scale_factor, -50.0);
+                        facial_data.width *= w_scale_factor;
+                        facial_data.height *= h_scale_factor;
+                        facial_data.center_x =
+                            2.0f32.mul_add(facial_data.x, facial_data.width) / -2.0; // minus flips values so negative is left
+                        facial_data.center_y =
+                            2.0f32.mul_add(facial_data.y, facial_data.height) / 2.0;
+                    },
+                );
                 filtered_data.push(facial_data);
 
                 // Send processed and filtered data
                 match sender_clone.send(filtered_data.get()) {
-                    Ok(()) => {
-                        debug!("Data from task sent.")
-                    }
-                    Err(SendError(data)) => {
-                        error!("Failed to send task data: {:?}", data);
-                    }
+                    Ok(()) => debug!("Data from task sent."),
+
+                    Err(SendError(data)) => error!("Failed to send task data: {:?}", data),
                 }
             }
             true
@@ -297,7 +288,7 @@ fn get_camera_frame_iterator(
         }
     };
     // Set the frame rate and start the camera capture
-    let cam_iter = match resolution_device.fps(camera_framerate as f64) {
+    let cam_iter = match resolution_device.fps(f64::from(camera_framerate)) {
         Ok(fps) => {
             info!("Camera fps set to {}.", camera_framerate);
             fps.start()

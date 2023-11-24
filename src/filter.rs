@@ -11,7 +11,7 @@ pub enum SmoothingFilterType {
 }
 
 impl WebcamFacialDataFiltered {
-    pub fn new(length: u32, filter_type: SmoothingFilterType) -> Self {
+    pub const fn new(length: u32, filter_type: SmoothingFilterType) -> Self {
         Self(Vec::new(), length, filter_type)
     }
 
@@ -25,23 +25,21 @@ impl WebcamFacialDataFiltered {
 
     #[allow(unused)]
     pub fn get(&mut self) -> WebcamFacialData {
-        if self.0.len() == 0 {
+        if self.0.is_empty() {
             self.push(WebcamFacialData::default());
         }
         match self.2 {
-            SmoothingFilterType::MeanMedian => return self.mean_median_filter(),
-            SmoothingFilterType::LowPass(alpha) => return self.low_pass_filter(alpha),
-            SmoothingFilterType::NoFilter => {
-                return WebcamFacialData {
-                    center_x: self.0[self.0.len() - 1].center_x,
-                    center_y: self.0[self.0.len() - 1].center_y,
-                    x: self.0[self.0.len() - 1].x,
-                    y: self.0[self.0.len() - 1].y,
-                    width: self.0[self.0.len() - 1].width,
-                    height: self.0[self.0.len() - 1].height,
-                    score: self.0[self.0.len() - 1].score,
-                }
-            }
+            SmoothingFilterType::MeanMedian => self.mean_median_filter(),
+            SmoothingFilterType::LowPass(alpha) => self.low_pass_filter(alpha),
+            SmoothingFilterType::NoFilter => WebcamFacialData {
+                center_x: self.0[self.0.len() - 1].center_x,
+                center_y: self.0[self.0.len() - 1].center_y,
+                x: self.0[self.0.len() - 1].x,
+                y: self.0[self.0.len() - 1].y,
+                width: self.0[self.0.len() - 1].width,
+                height: self.0[self.0.len() - 1].height,
+                score: self.0[self.0.len() - 1].score,
+            },
         }
     }
 

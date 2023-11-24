@@ -1,6 +1,4 @@
-use bevy::app::AppExit;
-use bevy::pbr::DirectionalLightShadowMap;
-use bevy::prelude::*;
+use bevy::{app::AppExit, pbr::DirectionalLightShadowMap, prelude::*};
 use bevy_scene_hook::{HookPlugin, HookedSceneBundle, SceneHook};
 
 use bevy_webcam_facial::*;
@@ -46,12 +44,9 @@ fn load_scene(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         hook: SceneHook::new(|entity, cmds| {
-            match entity.get::<Name>().map(|t| t.as_str()) {
-                Some("Camera") => {
-                    cmds.insert(CameraEye);
-                }
-                _ => {}
-            };
+            if entity.get::<Name>().map(Name::as_str) == Some("Camera") {
+                cmds.insert(CameraEye);
+            }
         }),
     });
     commands.spawn(PointLightBundle {
@@ -86,11 +81,11 @@ fn set_camera_position_from_plugin(
     mut webcam_data: EventReader<WebcamFacialDataEvent>,
     _time: Res<Time>,
 ) {
-    for event in webcam_data.iter() {
+    for event in webcam_data.read() {
         let x = event.0.center_x;
         let y = -event.0.center_y + 3.0;
 
-        for mut transform in camera.iter_mut() {
+        for mut transform in &mut camera {
             // For camera moving while looking at target:
             transform.translation = Transform::from_xyz(x, y, 10.0)
                 .looking_at(
