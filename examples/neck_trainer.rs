@@ -5,7 +5,7 @@ use bevy_webcam_facial::*;
 
 fn main() {
     App::new()
-        .insert_resource(Average::default())
+        .init_resource::<Average>()
         .insert_resource(ClearColor(Color::WHITE))
         .insert_resource(AmbientLight {
             color: Color::WHITE,
@@ -47,7 +47,7 @@ fn load_scene(mut cmds: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         hook: SceneHook::new(|entity, cmds| {
-            match entity.get::<Name>().map(|t| t.as_str()) {
+            match entity.get::<Name>().map(Name::as_str) {
                 Some("Headas") => cmds.insert(HeadBone),
                 _ => cmds,
             };
@@ -59,29 +59,31 @@ fn keyboard_animation_control(
     keyboard_input: Res<Input<KeyCode>>,
     mut animation_player: Query<&mut AnimationPlayer>,
 ) {
-    if let Ok(mut player) = animation_player.get_single_mut() {
-        if keyboard_input.just_pressed(KeyCode::Space) {
-            if player.is_paused() {
-                player.resume();
-            } else {
-                player.pause();
-            }
-        }
+    let Ok(mut player) = animation_player.get_single_mut() else {
+        return;
+    };
 
-        if keyboard_input.just_pressed(KeyCode::Up) {}
+    if keyboard_input.just_pressed(KeyCode::Space) {
+        if player.is_paused() {
+            player.resume();
+        } else {
+            player.pause();
+        }
     }
+
+    if keyboard_input.just_pressed(KeyCode::Up) {}
 }
 fn bone_move(
     mut head: Query<&mut Transform, With<HeadBone>>,
     mut average: ResMut<Average>,
     mut reader: EventReader<WebcamFacialDataEvent>,
 ) {
-    for event in reader.iter() {
-        let x = event.0.center_x as f32;
-        let y = event.0.center_y as f32;
+    for event in reader.read() {
+        let x = event.0.center_x;
+        let y = event.0.center_y;
         average.x = (x + average.x) / 2.0;
         average.y = (y + average.y) / 2.0;
-        for mut head in head.iter_mut() {
+        for mut head in &mut head {
             head.translation += 0.005;
         }
     }
